@@ -128,7 +128,7 @@ export class JWTManager {
   /**
    * Refresh tokens using a refresh token
    */
-  refreshTokens(refreshToken: string): AuthTokens {
+  refreshAccessTokens(refreshToken: string): AuthTokens {
     const tokenData = this.refreshTokens.get(refreshToken);
 
     if (!tokenData) {

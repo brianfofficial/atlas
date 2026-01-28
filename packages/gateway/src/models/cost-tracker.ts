@@ -313,7 +313,7 @@ export class CostTracker {
     const dailyMap = new Map<string, { cost: number; tokens: number }>()
 
     for (const entry of monthEntries) {
-      const dateKey = entry.timestamp.toISOString().split('T')[0]
+      const dateKey = entry.timestamp.toISOString().split('T')[0] ?? 'unknown'
       const existing = dailyMap.get(dateKey) ?? { cost: 0, tokens: 0 }
 
       dailyMap.set(dateKey, {

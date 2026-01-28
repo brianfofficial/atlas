@@ -14,7 +14,34 @@ import {
   isValidPreset,
   type SecurityPreset,
   type AtlasPresetConfig,
-} from '@atlas/gateway/config/presets.js'
+} from '@atlas/gateway'
+
+/**
+ * Base32 encoding for TOTP secrets (RFC 4648)
+ */
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+function base32Encode(buffer: Buffer): string {
+  let bits = 0
+  let value = 0
+  let output = ''
+
+  for (const byte of buffer) {
+    value = (value << 8) | byte
+    bits += 8
+
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31]
+      bits -= 5
+    }
+  }
+
+  if (bits > 0) {
+    output += BASE32_ALPHABET[(value << (5 - bits)) & 31]
+  }
+
+  return output
+}
 
 /**
  * ANSI color codes for terminal output
@@ -228,8 +255,8 @@ const steps: WizardStep[] = [
       printWarning('2FA is required and cannot be skipped.')
       console.log()
 
-      // Generate TOTP secret
-      ctx.mfaSecret = crypto.randomBytes(20).toString('base32').slice(0, 16)
+      // Generate TOTP secret (base32 encoded)
+      ctx.mfaSecret = base32Encode(crypto.randomBytes(20)).slice(0, 16)
 
       console.log('Your setup key (enter this in your authenticator app):')
       console.log()

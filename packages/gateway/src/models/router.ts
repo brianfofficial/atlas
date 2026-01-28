@@ -181,7 +181,7 @@ export class ModelRouter {
    */
   private parseModelSpec(spec: string): [string, string] {
     const parts = spec.split(':')
-    if (parts.length === 2) {
+    if (parts.length === 2 && parts[0] && parts[1]) {
       return [parts[0], parts[1]]
     }
     // Default to ollama if no provider specified

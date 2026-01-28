@@ -10,7 +10,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@atlas/shared": "workspace:*",
+    "@atlas/shared": "*",
     "keytar": "^7.9.0",
     "speakeasy": "^2.0.0",
     "jsonwebtoken": "^9.0.2",

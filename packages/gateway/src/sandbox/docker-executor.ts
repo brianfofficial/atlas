@@ -165,6 +165,7 @@ export class DockerSandboxExecutor {
       AttachStdin: !!request.stdin,
       OpenStdin: !!request.stdin,
       Tty: false,
+      User: '1000:1000', // Run as non-root
       HostConfig: {
         // Memory limit
         Memory: this.parseMemoryLimit(this.config.memoryLimit),
@@ -200,11 +201,8 @@ export class DockerSandboxExecutor {
         // Don't allow privilege escalation
         Privileged: false,
 
-        // User namespace remapping (run as non-root)
-        User: '1000:1000',
-
         // PID namespace isolation
-        PidMode: 'container',
+        PidMode: 'private',
 
         // IPC namespace isolation
         IpcMode: 'private',

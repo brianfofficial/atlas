@@ -5,9 +5,6 @@
  * Designed to make security accessible to non-technical users.
  */
 
-import type { AllowlistConfig } from '../sandbox/allowlist.js'
-import type { NetworkConfig } from '../security/network.js'
-
 /**
  * Security preset levels
  */
@@ -18,9 +15,9 @@ export type SecurityPreset = 'paranoid' | 'balanced' | 'permissive'
  */
 export interface AtlasPresetConfig {
   security: SecurityPresetConfig
-  network: NetworkConfig
+  network: PresetNetworkConfig
   sandbox: SandboxPresetConfig
-  allowlist: AllowlistConfig
+  allowlist: PresetAllowlistConfig
   models: ModelPresetConfig
 }
 
@@ -37,6 +34,20 @@ export interface SecurityPresetConfig {
 }
 
 /**
+ * Network-specific preset configuration
+ */
+export interface PresetNetworkConfig {
+  bindAddress: string
+  port: number
+  allowedIPs: string[]
+  blockedIPs: string[]
+  rateLimitPerMinute: number
+  rateLimitWindowMs: number
+  requireTailscale: boolean
+  tlsEnabled: boolean
+}
+
+/**
  * Sandbox-specific preset configuration
  */
 export interface SandboxPresetConfig {
@@ -46,6 +57,27 @@ export interface SandboxPresetConfig {
   timeoutSeconds: number
   networkAccess: boolean
   readOnlyFilesystem: boolean
+}
+
+/**
+ * Allowlist-specific preset configuration
+ */
+export interface PresetAllowlistConfig {
+  defaultPolicy: 'deny' | 'allow-safe'
+  safeCommands: string[]
+  dangerousCommands: string[]
+  blockedCommands: string[]
+  allowedDirectories: PresetDirectoryPermission[]
+  blockedPatterns: string[]
+}
+
+/**
+ * Directory permission for presets
+ */
+export interface PresetDirectoryPermission {
+  path: string
+  permissions: ('read' | 'write' | 'execute')[]
+  recursive: boolean
 }
 
 /**

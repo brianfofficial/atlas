@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@atlas/gateway": "workspace:*",
-    "@atlas/shared": "workspace:*"
+    "@atlas/gateway": "*",
+    "@atlas/shared": "*"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

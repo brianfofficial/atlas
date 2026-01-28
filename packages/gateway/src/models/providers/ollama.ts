@@ -235,8 +235,8 @@ export class OllamaProvider implements ModelProviderInterface {
       const data = (await response.json()) as OllamaTagsResponse
 
       this.cachedModels = (data.models ?? []).map((model) => {
-        const baseModel = model.name.split(':')[0]
-        const known = KNOWN_MODELS[model.name] ?? KNOWN_MODELS[baseModel]
+        const baseModel = model.name.split(':')[0] ?? model.name
+        const known = KNOWN_MODELS[model.name] ?? KNOWN_MODELS[baseModel] ?? null
 
         return {
           provider: 'ollama' as ModelProvider,
