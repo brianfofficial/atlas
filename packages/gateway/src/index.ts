@@ -22,6 +22,15 @@ export * from './security/index.js';
 // Re-export sandbox components
 export * from './sandbox/index.js';
 
+// Re-export model layer (P1.2)
+export * from './models/index.js';
+
+// Re-export skills layer (P1.4)
+export * from './skills/index.js';
+
+// Re-export configuration presets (P1.3)
+export * from './config/presets.js';
+
 // Version information
 export const VERSION = '0.1.0';
 export const CODENAME = 'Atlas';

@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode (secondary, dark mode is default) */
+    --background: 0 0% 100%;
+    --background-secondary: 0 0% 98%;
+    --background-tertiary: 0 0% 96%;
+    --foreground: 240 10% 4%;
+
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 239 84% 67%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Dark mode (primary) - sophisticated dark with glowing accents */
+    --background: 240 6% 4%;           /* #0a0a0b */
+    --background-secondary: 240 5% 8%; /* #141416 */
+    --background-tertiary: 240 4% 11%; /* #1c1c1f */
+    --foreground: 240 5% 96%;          /* #f4f4f5 */
+
+    --primary: 239 84% 67%;            /* #6366f1 Indigo */
+    --primary-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;            /* #10b981 Green */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;             /* #f59e0b Amber */
+    --warning-foreground: 0 0% 0%;
+
+    --danger: 0 84% 60%;               /* #ef4444 Red */
+    --danger-foreground: 0 0% 100%;
+
+    --muted: 240 4% 16%;               /* #27272a */
+    --muted-foreground: 240 5% 65%;    /* #a1a1aa */
+
+    --accent: 240 4% 16%;
+    --accent-foreground: 240 5% 96%;
+
+    --card: 240 5% 8%;
+    --card-foreground: 240 5% 96%;
+
+    --border: 240 4% 16%;              /* #27272a subtle */
+    --input: 240 4% 25%;               /* #3f3f46 default */
+    --ring: 239 84% 67%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Scrollbar styling for dark mode */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  /* Glow effects for security status indicators */
+  .glow-success {
+    box-shadow: 0 0 20px -5px hsl(var(--success) / 0.5);
+  }
+
+  .glow-warning {
+    box-shadow: 0 0 20px -5px hsl(var(--warning) / 0.5);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 20px -5px hsl(var(--danger) / 0.5);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.5);
+  }
+
+  /* Card hover effect */
+  .card-hover {
+    @apply transition-all duration-200;
+  }
+
+  .card-hover:hover {
+    @apply border-primary/50;
+    box-shadow: 0 0 30px -10px hsl(var(--primary) / 0.3);
+  }
+
+  /* Status dot indicator */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-success {
+    @apply bg-success;
+    box-shadow: 0 0 8px hsl(var(--success) / 0.6);
+  }
+
+  .status-dot-warning {
+    @apply bg-warning;
+    box-shadow: 0 0 8px hsl(var(--warning) / 0.6);
+  }
+
+  .status-dot-danger {
+    @apply bg-danger;
+    box-shadow: 0 0 8px hsl(var(--danger) / 0.6);
+  }
+
+  /* Gradient text for headings */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  /* Animation delays */
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+}

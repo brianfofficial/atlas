@@ -1,0 +1,26 @@
+{
+  "name": "@atlas/cli",
+  "version": "0.1.0",
+  "description": "Atlas CLI - Command-line interface for Atlas AI assistant",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "atlas": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@atlas/gateway": "workspace:*",
+    "@atlas/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
