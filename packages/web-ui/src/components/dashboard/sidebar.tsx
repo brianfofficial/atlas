@@ -14,6 +14,8 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
+  Sun,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -36,6 +38,16 @@ const navItems: NavItem[] = [
     title: 'Dashboard',
     href: '/',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Chat',
+    href: '/chat',
+    icon: MessageSquare,
+  },
+  {
+    title: 'Briefings',
+    href: '/briefings',
+    icon: Sun,
   },
   {
     title: 'Security',

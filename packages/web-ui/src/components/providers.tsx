@@ -6,6 +6,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { HelpProvider } from '@/hooks/use-help'
 import { HelpSidebar } from '@/components/help/help-sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AuthProvider } from '@/components/auth/auth-provider'
+import { CommandProvider } from '@/components/command/command-provider'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -23,11 +25,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <HelpProvider>
-          {children}
-          <HelpSidebar />
-          <Toaster />
-        </HelpProvider>
+        <AuthProvider>
+          <HelpProvider>
+            <CommandProvider>
+              {children}
+              <HelpSidebar />
+              <Toaster />
+            </CommandProvider>
+          </HelpProvider>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   )
