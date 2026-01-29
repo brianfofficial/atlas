@@ -4,8 +4,8 @@
  * Tracks and aggregates optimization metrics across all systems.
  */
 
-import { getPromptCache, PromptCacheStats } from './prompt-cache'
-import { getContextCompressor } from './context-compressor'
+import { getPromptCache, PromptCacheStats } from './prompt-cache.js'
+import { getContextCompressor } from './context-compressor.js'
 
 /**
  * Token pricing by model (per 1M tokens)
@@ -342,7 +342,7 @@ export class OptimizationStatsTracker {
     >()
 
     for (const entry of this.entries) {
-      const date = entry.timestamp.toISOString().split('T')[0]
+      const date = entry.timestamp.toISOString().split('T')[0] ?? 'unknown'
       const current = byDay.get(date) ?? {
         tokensSaved: 0,
         costSaved: 0,

@@ -8,7 +8,7 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { IncomingMessage } from 'http'
 import { randomUUID } from 'crypto'
-import { getEventBus, AtlasEvent, AtlasEventHandlers } from './event-emitter'
+import { getEventBus, AtlasEvent, AtlasEventHandlers } from './event-emitter.js'
 
 /**
  * WebSocket message types
@@ -206,7 +206,7 @@ export class AtlasWSServer {
 
   private handleMessage(client: WSClient, data: unknown): void {
     try {
-      const message = JSON.parse(data.toString()) as WSMessage
+      const message = JSON.parse(String(data)) as WSMessage
 
       switch (message.type) {
         case 'subscribe':
@@ -301,7 +301,7 @@ export class AtlasWSServer {
       }
 
       eventBus.on(eventType, handler)
-      this.eventHandlers.set(eventType, handler)
+      this.eventHandlers.set(eventType, handler as (...args: unknown[]) => void)
     }
   }
 

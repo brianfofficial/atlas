@@ -8,7 +8,8 @@
  */
 
 import { randomBytes, createHash } from 'node:crypto';
-import { sign, verify, TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+const { sign, verify, TokenExpiredError, JsonWebTokenError } = jwt;
 import type { JWTPayload, AuthTokens, AtlasSecurityError } from '@atlas/shared';
 
 // Constants

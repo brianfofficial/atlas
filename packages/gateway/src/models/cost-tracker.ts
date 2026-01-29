@@ -330,3 +330,8 @@ export class CostTracker {
 
 // Export singleton instance
 export const costTracker = new CostTracker()
+
+// Getter for singleton
+export function getCostTracker(): CostTracker {
+  return costTracker
+}

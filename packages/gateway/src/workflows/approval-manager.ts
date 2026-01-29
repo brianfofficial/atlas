@@ -16,10 +16,10 @@ import {
   ApprovalStats,
   ApprovalAuditEntry,
   DEFAULT_APPROVAL_CONFIG,
-} from './approval-types'
-import { ApprovalQueue, getApprovalQueue } from './approval-queue'
-import { AutoApproveRulesManager, getAutoApproveRulesManager } from './auto-approve-rules'
-import { ApprovalPersistence, getApprovalPersistence } from './approval-persistence'
+} from './approval-types.js'
+import { ApprovalQueue, getApprovalQueue } from './approval-queue.js'
+import { AutoApproveRulesManager, getAutoApproveRulesManager } from './auto-approve-rules.js'
+import { ApprovalPersistence, getApprovalPersistence } from './approval-persistence.js'
 
 /**
  * Events emitted by the ApprovalManager
@@ -358,7 +358,7 @@ export class ApprovalManager extends EventEmitter {
       case 'similar':
       default:
         // Similar commands (same base command)
-        const baseCommand = request.action.split(/\s+/)[0]
+        const baseCommand = request.action.split(/\s+/)[0] ?? request.action
         pattern = `^${this.escapeRegex(baseCommand)}\\s`
     }
 

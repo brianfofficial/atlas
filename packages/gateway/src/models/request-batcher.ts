@@ -243,9 +243,9 @@ export class RequestBatcher<T = unknown, R = unknown> {
       for (let i = 0; i < batch.length; i++) {
         const request = batch[i]
         const result = results[i]
-        if (result !== undefined) {
+        if (request && result !== undefined) {
           request.resolve(result)
-        } else {
+        } else if (request) {
           request.reject(new Error('No result returned for request'))
         }
       }

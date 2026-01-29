@@ -5,10 +5,10 @@
  */
 
 import { EventEmitter } from 'events'
-import { getSessionStore } from './session-store'
-import { getDeduplicationService } from './deduplication-service'
-import { getMemoryMonitor } from './memory-monitor'
-import { getApprovalQueue } from '../workflows/approval-queue'
+import { getSessionStore } from './session-store.js'
+import { getDeduplicationService } from './deduplication-service.js'
+import { getMemoryMonitor } from './memory-monitor.js'
+import { getApprovalQueue } from '../workflows/approval-queue.js'
 
 /**
  * Cleanup result

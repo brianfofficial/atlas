@@ -9,7 +9,7 @@
  * @module @atlas/gateway/security/auth/mfa
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import speakeasy from 'speakeasy';
 
 // Constants
@@ -196,7 +196,6 @@ export class MFAManager {
    * Backup codes should be stored hashed, not in plaintext
    */
   hashBackupCodes(codes: string[]): string[] {
-    const { createHash } = require('node:crypto');
     return codes.map((code) =>
       createHash('sha256')
         .update(code.replace(/[\s-]/g, '').toUpperCase())

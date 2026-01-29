@@ -14,7 +14,7 @@ import {
   ApprovalAuditEntry,
   AutoApproveRule,
   ApprovalConfig,
-} from './approval-types'
+} from './approval-types.js'
 
 /**
  * State to persist

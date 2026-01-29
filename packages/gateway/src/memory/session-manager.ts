@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events'
-import { SessionStore, Session, getSessionStore, SessionStoreConfig } from './session-store'
+import { SessionStore, Session, getSessionStore, SessionStoreConfig } from './session-store.js'
 
 /**
  * Session events

@@ -14,7 +14,7 @@ import {
   ApprovalStats,
   ApprovalConfig,
   DEFAULT_APPROVAL_CONFIG,
-} from './approval-types'
+} from './approval-types.js'
 
 /**
  * Approval Queue

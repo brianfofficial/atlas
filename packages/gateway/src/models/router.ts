@@ -271,3 +271,8 @@ export class ModelRouter {
 
 // Export singleton instance
 export const modelRouter = new ModelRouter()
+
+// Getter for singleton
+export function getModelRouter(): ModelRouter {
+  return modelRouter
+}

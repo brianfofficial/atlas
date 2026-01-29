@@ -16,7 +16,7 @@ export {
   type ApprovalExpiredEvent,
   type SecurityEvent,
   type ExecutionEvent,
-} from './event-emitter'
+} from './event-emitter.js'
 
 // WebSocket server
 export {
@@ -27,4 +27,4 @@ export {
   type WSMessage,
   type WSClient,
   type WSServerConfig,
-} from './websocket-server'
+} from './websocket-server.js'

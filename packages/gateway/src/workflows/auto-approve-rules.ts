@@ -11,7 +11,7 @@ import {
   ApprovalCategory,
   RiskLevel,
   ApprovalRequest,
-} from './approval-types'
+} from './approval-types.js'
 
 /**
  * Default auto-approve rules for safe operations

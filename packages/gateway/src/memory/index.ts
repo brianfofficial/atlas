@@ -10,7 +10,7 @@ export {
   getSessionStore,
   type Session,
   type SessionStoreConfig,
-} from './session-store'
+} from './session-store.js'
 
 // Session manager
 export {
@@ -18,7 +18,7 @@ export {
   getSessionManager,
   type CreateSessionOptions,
   type SessionManagerConfig,
-} from './session-manager'
+} from './session-manager.js'
 
 // Deduplication
 export {
@@ -27,7 +27,7 @@ export {
   type CachedResponse,
   type DeduplicationResult,
   type DeduplicationConfig,
-} from './deduplication-service'
+} from './deduplication-service.js'
 
 // Memory monitoring
 export {
@@ -37,7 +37,7 @@ export {
   type MemoryStats,
   type MemoryAlert,
   type MemoryMonitorConfig,
-} from './memory-monitor'
+} from './memory-monitor.js'
 
 // GC scheduling
 export {
@@ -46,4 +46,4 @@ export {
   startGCScheduler,
   type CleanupResult,
   type GCSchedulerConfig,
-} from './gc-scheduler'
+} from './gc-scheduler.js'
