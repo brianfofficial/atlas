@@ -114,16 +114,34 @@ async function getDefaultInlineResult(commandId: string): Promise<InlineResultDa
 }
 
 async function getWeatherResult(): Promise<InlineResultData> {
-  // In a real implementation, this would call the weather API
-  // For now, return mock data
-  return {
-    type: 'weather',
-    location: 'San Francisco',
-    temperature: 68,
-    condition: 'clear',
-    high: 72,
-    low: 58,
-    humidity: 65,
+  try {
+    const { getWeatherForCurrentLocation, getWeatherByCity } = await import('@/lib/api/weather')
+    let weatherData
+    try {
+      weatherData = await getWeatherForCurrentLocation()
+    } catch {
+      weatherData = await getWeatherByCity('New York')
+    }
+    return {
+      type: 'weather',
+      location: weatherData.current.location,
+      temperature: Math.round(weatherData.current.temperature),
+      condition: weatherData.current.condition.main.toLowerCase(),
+      high: Math.round(weatherData.forecast[0]?.high ?? weatherData.current.temperature + 5),
+      low: Math.round(weatherData.forecast[0]?.low ?? weatherData.current.temperature - 10),
+      humidity: weatherData.current.humidity,
+    }
+  } catch {
+    // Fallback if API fails
+    return {
+      type: 'weather',
+      location: 'Weather unavailable',
+      temperature: 0,
+      condition: 'unknown',
+      high: 0,
+      low: 0,
+      humidity: 0,
+    }
   }
 }
 
@@ -146,44 +164,124 @@ function getTimeResult(): Promise<InlineResultData> {
 }
 
 async function getGitHubResult(): Promise<InlineResultData> {
-  // In a real implementation, this would call the GitHub API
-  return {
-    type: 'github',
-    prsAwaitingReview: 3,
-    myOpenPRs: 2,
-    ciStatus: 'passing',
-    recentCommits: 5,
-    link: {
-      label: 'Open GitHub',
-      href: 'https://github.com',
-    },
+  try {
+    const { isGitHubConnected, getPRsAwaitingReview, getMyOpenPRs } = await import('@/lib/api/github')
+    const connected = await isGitHubConnected()
+
+    if (!connected) {
+      return {
+        type: 'github',
+        prsAwaitingReview: 0,
+        myOpenPRs: 0,
+        ciStatus: 'none',
+        recentCommits: 0,
+        link: { label: 'Connect GitHub', href: '/settings/integrations' },
+      }
+    }
+
+    const [prsToReview, myPRs] = await Promise.all([
+      getPRsAwaitingReview().catch(() => []),
+      getMyOpenPRs().catch(() => []),
+    ])
+
+    return {
+      type: 'github',
+      prsAwaitingReview: prsToReview.length,
+      myOpenPRs: myPRs.length,
+      ciStatus: 'none',
+      recentCommits: 0,
+      link: { label: 'Open GitHub', href: 'https://github.com' },
+    }
+  } catch {
+    return {
+      type: 'github',
+      prsAwaitingReview: 0,
+      myOpenPRs: 0,
+      ciStatus: 'none',
+      recentCommits: 0,
+      link: { label: 'Open GitHub', href: 'https://github.com' },
+    }
   }
 }
 
 async function getEmailResult(): Promise<InlineResultData> {
-  // In a real implementation, this would call the Gmail API
-  return {
-    type: 'email',
-    unreadCount: 12,
-    latestSender: 'GitHub',
-    latestSubject: 'Your PR was approved',
-    link: {
-      label: 'Open Gmail',
-      href: 'https://mail.google.com',
-    },
+  try {
+    const { isGmailConnected, getInboxSummary } = await import('@/lib/api/gmail')
+    const connected = await isGmailConnected()
+
+    if (!connected) {
+      return {
+        type: 'email',
+        unreadCount: 0,
+        latestSender: '',
+        latestSubject: 'Connect Gmail to see emails',
+        link: { label: 'Connect Gmail', href: '/settings/integrations' },
+      }
+    }
+
+    const summary = await getInboxSummary()
+    const latest = summary.recentThreads[0]?.messages[0]
+
+    return {
+      type: 'email',
+      unreadCount: summary.unreadCount,
+      latestSender: latest?.from?.name || 'Unknown',
+      latestSubject: latest?.subject || 'No recent emails',
+      link: { label: 'Open Gmail', href: 'https://mail.google.com' },
+    }
+  } catch {
+    return {
+      type: 'email',
+      unreadCount: 0,
+      latestSender: '',
+      latestSubject: 'Email unavailable',
+      link: { label: 'Open Gmail', href: 'https://mail.google.com' },
+    }
   }
 }
 
 async function getCalendarResult(): Promise<InlineResultData> {
-  // In a real implementation, this would call the Calendar API
-  return {
-    type: 'calendar',
-    nextEvent: 'Team Standup',
-    nextEventTime: 'In 30 minutes',
-    eventCount: 4,
-    link: {
-      label: 'Open Calendar',
-      href: 'https://calendar.google.com',
-    },
+  try {
+    const { isCalendarConnected, getTodayEvents } = await import('@/lib/api/calendar')
+    const connected = await isCalendarConnected()
+
+    if (!connected) {
+      return {
+        type: 'calendar',
+        nextEvent: 'Connect Calendar',
+        nextEventTime: 'to see your schedule',
+        eventCount: 0,
+        link: { label: 'Connect Calendar', href: '/settings/integrations' },
+      }
+    }
+
+    const events = await getTodayEvents()
+    const now = new Date()
+    const nextEvent = events.find(e => new Date(e.start) > now)
+
+    let nextEventTime = 'No more events today'
+    if (nextEvent) {
+      const diff = new Date(nextEvent.start).getTime() - now.getTime()
+      const mins = Math.round(diff / 60000)
+      if (mins < 1) nextEventTime = 'Starting now'
+      else if (mins < 60) nextEventTime = `In ${mins} minutes`
+      else nextEventTime = `In ${Math.round(mins / 60)} hours`
+    }
+
+    return {
+      type: 'calendar',
+      nextEvent: nextEvent?.summary || 'No upcoming events',
+      nextEventTime,
+      eventCount: events.length,
+      link: { label: 'Open Calendar', href: 'https://calendar.google.com' },
+    }
+  } catch {
+    return {
+      type: 'calendar',
+      nextEvent: 'Calendar unavailable',
+      nextEventTime: '',
+      eventCount: 0,
+      link: { label: 'Open Calendar', href: 'https://calendar.google.com' },
+    }
   }
 }

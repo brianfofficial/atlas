@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
 interface IPRule {
   id: string
@@ -80,6 +81,12 @@ export default function NetworkSettingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Network Settings"
+        description="This page shows sample network rules. Real IP access controls can be configured here."
+      />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Network Settings</h1>

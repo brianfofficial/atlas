@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { formatRelativeTime } from '@/lib/utils'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
 interface Device {
   id: string
@@ -104,6 +105,12 @@ export default function DevicesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Paired Devices"
+        description="This page shows sample device data. Real devices will appear when you authenticate from new devices."
+      />
+
       <div>
         <h1 className="text-2xl font-bold">Paired Devices</h1>
         <p className="text-muted-foreground">

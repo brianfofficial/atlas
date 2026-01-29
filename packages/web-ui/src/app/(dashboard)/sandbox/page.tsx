@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatRelativeTime } from '@/lib/utils'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
 interface SandboxExecution {
   id: string
@@ -108,6 +109,12 @@ export default function SandboxPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Sandbox Executions"
+        description="This page shows sample execution data. Real sandbox monitoring will display actual Docker container activity."
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

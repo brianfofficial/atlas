@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatRelativeTime } from '@/lib/utils'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
 type EventType = 'all' | 'auth' | 'sandbox' | 'injection' | 'network'
 type EventSeverity = 'success' | 'warning' | 'danger' | 'info'
@@ -164,6 +165,12 @@ export default function SecurityPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Security Events"
+        description="This page shows sample security events. Real events will appear as you use Atlas."
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

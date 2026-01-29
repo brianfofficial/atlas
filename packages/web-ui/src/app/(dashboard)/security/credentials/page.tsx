@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatDate } from '@/lib/utils'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
 type CredentialService =
   | 'anthropic'
@@ -137,6 +138,12 @@ export default function CredentialsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Credentials"
+        description="This page shows sample credentials. Real credentials will be stored encrypted when you add them."
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

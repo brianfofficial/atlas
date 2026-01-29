@@ -34,8 +34,9 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatCurrency } from '@/lib/utils'
+import { DemoBanner } from '@/components/ui/demo-banner'
 
-// Mock data
+// Demo data - will be replaced with real API data
 const dailyUsage = [
   { date: 'Jan 22', cost: 2.45, tokens: 45000 },
   { date: 'Jan 23', cost: 3.12, tokens: 58000 },
@@ -70,6 +71,12 @@ export default function CostsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo mode banner */}
+      <DemoBanner
+        feature="Usage & Costs"
+        description="This page shows sample data. Real usage tracking will be available once you start using Atlas AI features."
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
