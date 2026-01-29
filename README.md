@@ -123,6 +123,77 @@ if (result.blocked) {
 }
 ```
 
+## P1 Features
+
+### Web Dashboard
+Modern security dashboard built with Next.js 15, Tailwind CSS 4, and Radix UI.
+
+```bash
+cd packages/web-ui && npm run dev
+```
+
+**Pages:**
+- `/` - Security overview dashboard
+- `/login` - Authentication with MFA
+- `/setup-mfa` - 7-step MFA enrollment wizard
+- `/security` - Security event monitoring
+- `/security/credentials` - Credential management
+- `/security/allowlist` - Command allowlist configuration
+- `/costs` - Token usage & budget tracking
+- `/settings` - Configuration
+
+### Local Model Support
+Route requests to local models (free) for simple tasks, cloud APIs for complex tasks.
+
+```typescript
+import { ModelRouter, CostTracker } from '@atlas/gateway';
+
+const router = new ModelRouter({ autoDetectComplexity: true });
+const response = await router.route({ prompt: 'List files in current directory' });
+// Routes to ollama:llama3 (free) for simple tasks
+
+const tracker = new CostTracker();
+tracker.updateBudget({ dailyLimit: 10 }); // $10/day limit
+console.log(tracker.getTodaySpend());
+```
+
+**Supported Providers:**
+- Ollama (llama3, mistral, codellama)
+- LM Studio (any GGUF model)
+
+### Skill Verification
+Prevent supply chain attacks with skill signing and verification.
+
+```typescript
+import { verifySkill } from '@atlas/gateway';
+
+const result = await verifySkill('./my-skill', {
+  requireSignature: true,
+  trustedPublishersOnly: true,
+  maxRiskLevel: 'medium',
+});
+
+if (!result.isValid) {
+  console.log('Issues:', result.issues);
+}
+```
+
+### Security Presets
+Pre-configured security profiles for different use cases.
+
+```typescript
+import { getPreset } from '@atlas/gateway';
+
+const paranoid = getPreset('paranoid');
+// Local-only, all approvals required, no network
+
+const balanced = getPreset('balanced');
+// Docker sandbox, safe commands auto-approved
+
+const permissive = getPreset('permissive');
+// Network access, dangerous commands need approval
+```
+
 ## Installation
 
 ```bash
@@ -205,19 +276,30 @@ if (validation.blocked) {
 
 ## Roadmap
 
-### P1 (Next)
-- [ ] Skill verification & code signing
-- [ ] Local model support (Ollama, LM Studio)
-- [ ] Simplified onboarding wizard
+### P0 Security Foundation (Complete)
+- [x] Encrypted credential storage
+- [x] Mandatory MFA authentication
+- [x] Zero-trust network architecture
+- [x] Docker sandboxing
+- [x] Command allowlisting
+- [x] Prompt injection defense
+- [x] Output validation
 
-### P2
+### P1 Features (Complete)
+- [x] Web Dashboard UI (Next.js 15, Tailwind 4, Radix UI)
+- [x] Skill verification & code signing (Ed25519 signatures)
+- [x] Local model support (Ollama, LM Studio integration)
+- [x] Simplified onboarding wizard (security presets)
+- [x] Cost tracking & budget management
+
+### P2 (Next)
 - [ ] Human-in-the-loop approvals
 - [ ] Token optimization
 - [ ] Stability improvements
 
 ### P3
 - [ ] Enterprise audit logging
-- [ ] Security dashboard
+- [ ] Advanced analytics
 
 ## Contributing
 
