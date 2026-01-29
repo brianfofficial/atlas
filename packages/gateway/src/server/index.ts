@@ -30,10 +30,12 @@ import preferencesRoutes from './routes/preferences.js';
 import memoryRoutes from './routes/memory.js';
 import auditRoutes from './routes/audit.js';
 import briefingsRoutes from './routes/briefings.js';
+import rolloutRoutes from './routes/rollout.js';
 
 import { initializeDatabase } from '../db/index.js';
 import { EventBroadcaster, getEventBroadcaster } from '../events/event-broadcaster.js';
 import { initializeBriefingService, startBriefingService, stopBriefingService } from '../briefings/briefing-service.js';
+import { initializeRolloutSystem } from '../rollout/index.js';
 import { DEFAULT_CONFIG, type AtlasConfig } from '../index.js';
 
 // Server logger
@@ -115,6 +117,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.use('/api/memory/*', authMiddleware());
   app.use('/api/audit/*', authMiddleware());
   app.use('/api/briefings/*', authMiddleware());
+  app.use('/api/rollout/*', authMiddleware());
 
   app.route('/api/approvals', approvalsRoutes);
   app.route('/api/dashboard', dashboardRoutes);
@@ -124,6 +127,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.route('/api/memory', memoryRoutes);
   app.route('/api/audit', auditRoutes);
   app.route('/api/briefings', briefingsRoutes);
+  app.route('/api/rollout', rolloutRoutes);
 
   // 404 handler
   app.notFound((c) => {
@@ -170,6 +174,19 @@ export async function startServer(config: Partial<AtlasConfig> = {}): Promise<vo
     experimentMode: process.env.ATLAS_EXPERIMENT_MODE === 'true',
   });
   startBriefingService();
+
+  // Initialize rollout system (V1 Trust Regression Monitoring)
+  log.info('Initializing rollout system...');
+  await initializeRolloutSystem(db, {
+    trustMonitor: {
+      enableBroadcast: true,
+      measurementPeriodHours: 24,
+    },
+    rolloutManager: {
+      autoFreezeEnabled: true,
+      dailyGateCheckEnabled: true,
+    },
+  });
 
   // Create server
   const app = createServer(mergedConfig);

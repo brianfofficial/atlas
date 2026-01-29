@@ -656,6 +656,223 @@ export const pinnedMemoriesRelations = relations(pinnedMemories, ({ one }) => ({
   }),
 }));
 
+// ============================================================================
+// ROLLOUT & TRUST REGRESSION TABLES (V1 Trust Monitoring)
+// ============================================================================
+
+/**
+ * Rollout state - Global rollout configuration and freeze state
+ * Only one row should exist (singleton pattern)
+ */
+export const rolloutState = sqliteTable('rollout_state', {
+  id: text('id').primaryKey().default('singleton'),
+  currentPhase: integer('current_phase').notNull().default(0), // 0-3
+  consecutiveCleanDays: integer('consecutive_clean_days').notNull().default(0),
+  lastCleanDayCheck: text('last_clean_day_check').notNull().default("datetime('now')"),
+  totalUsers: integer('total_users').notNull().default(0),
+  activeUsers: integer('active_users').notNull().default(0),
+
+  // Freeze state
+  frozen: integer('frozen', { mode: 'boolean' }).notNull().default(false),
+  frozenAt: text('frozen_at'),
+  frozenReason: text('frozen_reason'),
+  frozenBy: text('frozen_by'), // userId or 'system'
+
+  // Briefings disable state
+  briefingsDisabled: integer('briefings_disabled', { mode: 'boolean' }).notNull().default(false),
+  briefingsDisabledAt: text('briefings_disabled_at'),
+  briefingsDisabledReason: text('briefings_disabled_reason'),
+
+  // Last phase change
+  lastPhaseChangeFrom: integer('last_phase_change_from'),
+  lastPhaseChangeTo: integer('last_phase_change_to'),
+  lastPhaseChangeAt: text('last_phase_change_at'),
+  lastPhaseChangeReason: text('last_phase_change_reason'),
+
+  updatedAt: text('updated_at').notNull().default("datetime('now')"),
+});
+
+/**
+ * Trust signal measurements - Live monitoring signals
+ */
+export const trustSignals = sqliteTable(
+  'trust_signals',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(), // TrustSignalType
+    value: real('value').notNull(),
+    level: text('level').notNull(), // 'normal' | 'warning' | 'stop'
+    numerator: integer('numerator'),
+    denominator: integer('denominator'),
+    periodStart: text('period_start').notNull(),
+    periodEnd: text('period_end').notNull(),
+    metadata: text('metadata').default('{}'),
+    measuredAt: text('measured_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    typeIdx: index('idx_trust_signals_type').on(table.type),
+    levelIdx: index('idx_trust_signals_level').on(table.level),
+    measuredAtIdx: index('idx_trust_signals_measured_at').on(table.measuredAt),
+  })
+);
+
+/**
+ * Trust regression events - Halt triggers and user reports
+ */
+export const trustRegressionEvents = sqliteTable(
+  'trust_regression_events',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    trigger: text('trigger').notNull(), // ImmediateHaltTrigger
+    severity: text('severity').notNull().default('warning'), // 'warning' | 'critical'
+    description: text('description').notNull(),
+    userReported: integer('user_reported', { mode: 'boolean' }).notNull().default(false),
+    userFeedback: text('user_feedback'),
+    briefingId: text('briefing_id'),
+    sectionId: text('section_id'),
+    metadata: text('metadata').default('{}'),
+    resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+    resolvedAt: text('resolved_at'),
+    resolution: text('resolution'),
+    timestamp: text('timestamp').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_trust_regression_user_id').on(table.userId),
+    triggerIdx: index('idx_trust_regression_trigger').on(table.trigger),
+    severityIdx: index('idx_trust_regression_severity').on(table.severity),
+    resolvedIdx: index('idx_trust_regression_resolved').on(table.resolved),
+    timestampIdx: index('idx_trust_regression_timestamp').on(table.timestamp),
+  })
+);
+
+/**
+ * User eligibility - Tracks V1 eligibility assessments
+ */
+export const userEligibility = sqliteTable(
+  'user_eligibility',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eligible: integer('eligible', { mode: 'boolean' }).notNull().default(false),
+
+    // Required traits (all must be true for eligibility)
+    technicalComfort: integer('technical_comfort', { mode: 'boolean' }).default(false),
+    healthySkepticism: integer('healthy_skepticism', { mode: 'boolean' }).default(false),
+    directChannel: integer('direct_channel', { mode: 'boolean' }).default(false),
+    patience: integer('patience', { mode: 'boolean' }).default(false),
+    dailyToolUser: integer('daily_tool_user', { mode: 'boolean' }).default(false),
+
+    // Anti-target flags (any true = ineligible)
+    expectsPolish: integer('expects_polish', { mode: 'boolean' }).default(false),
+    ignoresErrors: integer('ignores_errors', { mode: 'boolean' }).default(false),
+    tooManyIntegrations: integer('too_many_integrations', { mode: 'boolean' }).default(false),
+    nonUSTimezone: integer('non_us_timezone', { mode: 'boolean' }).default(false),
+    needsAtlasToWork: integer('needs_atlas_to_work', { mode: 'boolean' }).default(false),
+
+    blockedReasons: text('blocked_reasons').default('[]'), // JSON array
+    assessedAt: text('assessed_at').notNull().default("datetime('now')"),
+    assessedBy: text('assessed_by'),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_user_eligibility_user_id').on(table.userId),
+    eligibleIdx: index('idx_user_eligibility_eligible').on(table.eligible),
+  })
+);
+
+/**
+ * Daily review checklists - Builder review tracking
+ */
+export const dailyReviewChecklists = sqliteTable(
+  'daily_review_checklists',
+  {
+    id: text('id').primaryKey(),
+    date: text('date').notNull().unique(), // YYYY-MM-DD
+    completedAt: text('completed_at'),
+    completedBy: text('completed_by'),
+
+    // Check values (JSON)
+    checks: text('checks').notNull().default('{}'),
+
+    // Daily questions (JSON)
+    questions: text('questions').notNull().default('{}'),
+
+    // Erosion patterns detected (JSON)
+    erosionPatterns: text('erosion_patterns').notNull().default('{}'),
+
+    // Overall assessment
+    allClear: integer('all_clear', { mode: 'boolean' }).default(false),
+    notes: text('notes'),
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    dateIdx: index('idx_daily_review_date').on(table.date),
+    completedAtIdx: index('idx_daily_review_completed_at').on(table.completedAt),
+  })
+);
+
+/**
+ * Briefing retry tracking - Per-session retry counts
+ */
+export const briefingRetries = sqliteTable(
+  'briefing_retries',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    briefingId: text('briefing_id'),
+    sessionId: text('session_id').notNull(),
+    sectionId: text('section_id'), // Which section was retried
+    retryCount: integer('retry_count').notNull().default(1),
+    firstRetryAt: text('first_retry_at').notNull().default("datetime('now')"),
+    lastRetryAt: text('last_retry_at').notNull().default("datetime('now')"),
+    // Track retries within 60 seconds (for STOP detection)
+    retriesInLastMinute: integer('retries_in_last_minute').notNull().default(1),
+  },
+  (table) => ({
+    userIdIdx: index('idx_briefing_retries_user_id').on(table.userId),
+    sessionIdIdx: index('idx_briefing_retries_session_id').on(table.sessionId),
+    lastRetryIdx: index('idx_briefing_retries_last_retry').on(table.lastRetryAt),
+  })
+);
+
+// Relations for rollout tables
+export const rolloutStateRelations = relations(rolloutState, () => ({}));
+
+export const trustSignalsRelations = relations(trustSignals, () => ({}));
+
+export const trustRegressionEventsRelations = relations(trustRegressionEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [trustRegressionEvents.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userEligibilityRelations = relations(userEligibility, ({ one }) => ({
+  user: one(users, {
+    fields: [userEligibility.userId],
+    references: [users.id],
+  }),
+}));
+
+export const dailyReviewChecklistsRelations = relations(dailyReviewChecklists, () => ({}));
+
+export const briefingRetriesRelations = relations(briefingRetries, ({ one }) => ({
+  user: one(users, {
+    fields: [briefingRetries.userId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -679,3 +896,11 @@ export type BriefingSchedule = typeof briefingSchedules.$inferSelect;
 export type UserEngagement = typeof userEngagement.$inferSelect;
 export type TrustFailureEvent = typeof trustFailureEvents.$inferSelect;
 export type PinnedMemory = typeof pinnedMemories.$inferSelect;
+
+// Rollout system types
+export type RolloutStateRow = typeof rolloutState.$inferSelect;
+export type TrustSignalRow = typeof trustSignals.$inferSelect;
+export type TrustRegressionEventRow = typeof trustRegressionEvents.$inferSelect;
+export type UserEligibilityRow = typeof userEligibility.$inferSelect;
+export type DailyReviewChecklistRow = typeof dailyReviewChecklists.$inferSelect;
+export type BriefingRetryRow = typeof briefingRetries.$inferSelect;

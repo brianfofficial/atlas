@@ -36,7 +36,24 @@ export type AuditEventType =
   | 'network:request_blocked'
   | 'session:created'
   | 'session:invalidated'
-  | 'config:changed';
+  | 'config:changed'
+  // Trust regression events (V1 Rollout Plan)
+  | 'trust:stale_data' // Data shown is outdated
+  | 'trust:silent_failure' // Section failed without user knowing
+  | 'trust:behavior_change' // Briefing changed unexpectedly
+  | 'trust:user_report' // User reported "feels wrong"
+  | 'trust:memory_attribution' // Memory used without attribution
+  | 'trust:cascade_failure' // Summary mentions failed section
+  | 'trust:signal_stop' // Trust signal hit STOP threshold
+  // Rollout events
+  | 'rollout:freeze' // Rollout frozen
+  | 'rollout:unfreeze' // Rollout unfrozen
+  | 'rollout:phase_change' // Phase advanced or regressed
+  | 'rollout:briefings_disabled' // Briefings disabled
+  | 'rollout:briefings_enabled' // Briefings re-enabled
+  | 'rollout:eligibility_assessed' // User eligibility assessed
+  | 'rollout:clean_day' // Clean day recorded
+  | 'rollout:clean_days_reset'; // Clean day counter reset
 
 export type AuditSeverity = 'info' | 'warning' | 'error' | 'critical';
 
