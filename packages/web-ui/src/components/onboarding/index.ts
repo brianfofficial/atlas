@@ -1,0 +1,6 @@
+export { OnboardingModal } from './onboarding-modal'
+export { WelcomeStep } from './welcome-step'
+export { SecurityExplainerStep } from './security-explainer'
+export { FirstCredentialStep } from './first-credential-step'
+export { FirstCommandStep } from './first-command-step'
+export { CompletionStep } from './completion-step'
