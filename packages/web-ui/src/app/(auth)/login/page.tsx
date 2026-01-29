@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useAuth } from '@/hooks/use-auth'
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -30,10 +31,45 @@ type AuthStep = 'credentials' | 'mfa'
 
 export default function LoginPage() {
   const router = useRouter()
+  const {
+    login,
+    verifyMFA,
+    requiresMFA,
+    isLoggingIn,
+    isVerifyingMFA,
+    loginError,
+    verifyMFAError,
+    isAuthenticated,
+  } = useAuth()
+
   const [step, setStep] = useState<AuthStep>('credentials')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const redirect = sessionStorage.getItem('atlas_redirect') || '/'
+      sessionStorage.removeItem('atlas_redirect')
+      router.push(redirect)
+    }
+  }, [isAuthenticated, router])
+
+  // Switch to MFA step when required
+  useEffect(() => {
+    if (requiresMFA) {
+      setStep('mfa')
+    }
+  }, [requiresMFA])
+
+  // Handle errors
+  useEffect(() => {
+    if (loginError) {
+      setError(loginError.message || 'Invalid email or password')
+    } else if (verifyMFAError) {
+      setError(verifyMFAError.message || 'Invalid verification code')
+    }
+  }, [loginError, verifyMFAError])
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -51,41 +87,27 @@ export default function LoginPage() {
   })
 
   async function onLoginSubmit(data: LoginForm) {
-    setIsLoading(true)
     setError(null)
-
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // For demo, always proceed to MFA
-      // In production, this would validate credentials first
-      console.log('Login:', data)
-      setStep('mfa')
-    } catch {
-      setError('Invalid email or password')
-    } finally {
-      setIsLoading(false)
+      await login(data.email, data.password)
+      // If MFA is required, useEffect will handle switching to MFA step
+      // If not (shouldn't happen in Atlas), we'll be redirected via isAuthenticated
+    } catch (err) {
+      // Error is handled by useEffect watching loginError
     }
   }
 
   async function onMFASubmit(data: MFAForm) {
-    setIsLoading(true)
     setError(null)
-
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // For demo, accept any 6-digit code
-      console.log('MFA:', data)
-      router.push('/dashboard')
-    } catch {
-      setError('Invalid verification code')
-    } finally {
-      setIsLoading(false)
+      await verifyMFA(data.code)
+      // Successful verification will trigger isAuthenticated useEffect
+    } catch (err) {
+      // Error is handled by useEffect watching verifyMFAError
     }
   }
+
+  const isLoading = isLoggingIn || isVerifyingMFA
 
   return (
     <AnimatePresence mode="wait">

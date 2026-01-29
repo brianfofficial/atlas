@@ -187,7 +187,7 @@ function HistoryEntry({
               <span>by {entry.userId}</span>
             </>
           )}
-          {entry.details?.ruleName && (
+          {entry.details && 'ruleName' in entry.details && (
             <>
               <span>•</span>
               <span>Rule: {String(entry.details.ruleName)}</span>

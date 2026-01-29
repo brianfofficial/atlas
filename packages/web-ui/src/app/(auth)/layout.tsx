@@ -1,4 +1,7 @@
+'use client'
+
 import { Shield } from 'lucide-react'
+import { GuestGuard } from '@/components/auth/auth-guard'
 
 export default function AuthLayout({
   children,
@@ -6,6 +9,7 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
+    <GuestGuard>
     <div className="min-h-screen flex">
       {/* Left panel - branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-background-secondary relative overflow-hidden">
@@ -84,5 +88,6 @@ export default function AuthLayout({
         <div className="w-full max-w-md">{children}</div>
       </div>
     </div>
+    </GuestGuard>
   )
 }

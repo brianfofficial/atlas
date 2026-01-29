@@ -233,31 +233,52 @@ export function useWeather(location?: string) {
     setError(null)
 
     try {
-      // This would call the actual weather API
-      // For now, return mock data
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Import the weather API client dynamically to avoid circular deps
+      const { getWeatherByCity, getWeatherForCurrentLocation } = await import('@/lib/api/weather')
+
+      let weatherData
+      if (location) {
+        weatherData = await getWeatherByCity(location)
+      } else {
+        try {
+          // Try to get weather for current location
+          weatherData = await getWeatherForCurrentLocation()
+        } catch {
+          // Fall back to a default city if geolocation fails
+          weatherData = await getWeatherByCity('New York')
+        }
+      }
+
+      // Transform API response to widget format
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
       setData({
-        location: location || 'San Francisco',
+        location: weatherData.current.location,
         current: {
-          temp: 68,
-          feelsLike: 65,
-          condition: 'Partly Cloudy',
-          humidity: 62,
-          windSpeed: 12,
-          icon: 'cloudy',
+          temp: weatherData.current.temperature,
+          feelsLike: weatherData.current.feelsLike,
+          condition: weatherData.current.condition.main,
+          humidity: weatherData.current.humidity,
+          windSpeed: weatherData.current.windSpeed,
+          icon: weatherData.current.condition.icon,
         },
         today: {
-          high: 72,
-          low: 58,
+          high: weatherData.forecast[0]?.high ?? weatherData.current.temperature + 5,
+          low: weatherData.forecast[0]?.low ?? weatherData.current.temperature - 10,
         },
-        forecast: [
-          { day: 'Tue', high: 74, low: 59, condition: 'sunny' },
-          { day: 'Wed', high: 71, low: 57, condition: 'cloudy' },
-          { day: 'Thu', high: 68, low: 55, condition: 'rain' },
-        ],
+        forecast: weatherData.forecast.slice(1, 4).map((day) => ({
+          day: dayNames[day.date.getDay()],
+          high: day.high,
+          low: day.low,
+          condition: day.condition.main.toLowerCase(),
+        })),
+        alerts: weatherData.alerts?.map((alert) => ({
+          title: alert.event,
+          severity: alert.severity,
+        })),
       })
     } catch (err) {
+      console.error('Weather fetch error:', err)
       setError('Failed to load weather data')
     } finally {
       setIsLoading(false)

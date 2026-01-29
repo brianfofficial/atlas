@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
-interface SecurityFactor {
+export interface SecurityFactor {
   id: string
   name: string
   description: string

@@ -296,84 +296,88 @@ function PRItem({ pr, onClick }: PRItemProps) {
   )
 }
 
+// Helper to map GitHub API review decision to widget format
+function mapReviewStatus(
+  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED'
+): 'approved' | 'changes_requested' | 'pending' | 'none' {
+  if (!reviewDecision) return 'none'
+  switch (reviewDecision) {
+    case 'APPROVED':
+      return 'approved'
+    case 'CHANGES_REQUESTED':
+      return 'changes_requested'
+    case 'REVIEW_REQUIRED':
+      return 'pending'
+    default:
+      return 'none'
+  }
+}
+
 // Hook for fetching GitHub data
 export function useGitHub() {
   const [data, setData] = useState<GitHubData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState<boolean | null>(null)
 
   const fetchGitHub = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // This would call the actual GitHub API
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Import the GitHub API client dynamically
+      const {
+        isGitHubConnected,
+        getPRsAwaitingReview,
+        getMyOpenPRs,
+        getNotifications,
+      } = await import('@/lib/api/github')
 
-      const now = new Date()
+      // Check if GitHub is connected
+      const connected = await isGitHubConnected()
+      setIsConnected(connected)
+
+      if (!connected) {
+        // Return null if not connected - UI will show connection prompt
+        setData(null)
+        return
+      }
+
+      // Fetch real data in parallel
+      const [prsToReview, myPRs, notifications] = await Promise.all([
+        getPRsAwaitingReview().catch(() => []),
+        getMyOpenPRs().catch(() => []),
+        getNotifications?.().catch(() => []) ?? Promise.resolve([]),
+      ])
+
+      // Transform API PRs to widget format
+      const transformPR = (pr: any): PullRequest => ({
+        id: pr.id.toString(),
+        number: pr.number,
+        title: pr.title,
+        repo: pr.base?.repo?.fullName || pr.htmlUrl?.split('/').slice(3, 5).join('/') || 'unknown',
+        author: {
+          name: pr.user?.name || pr.user?.login || 'Unknown',
+          avatar: pr.user?.avatarUrl,
+        },
+        status: pr.draft ? 'draft' : pr.merged ? 'merged' : pr.state === 'closed' ? 'closed' : 'open',
+        ciStatus: 'none', // Would need additional API call for CI status
+        reviewStatus: mapReviewStatus(pr.reviewDecision),
+        comments: pr.comments || 0,
+        updatedAt: new Date(pr.updatedAt),
+        url: pr.htmlUrl,
+      })
 
       setData({
-        prsAwaitingReview: [
-          {
-            id: '1',
-            number: 142,
-            title: 'Add user authentication flow',
-            repo: 'atlas/web-ui',
-            author: { name: 'Sarah Chen' },
-            status: 'open',
-            ciStatus: 'passing',
-            reviewStatus: 'pending',
-            comments: 3,
-            updatedAt: new Date(now.getTime() - 30 * 60 * 1000),
-            url: 'https://github.com/atlas/web-ui/pull/142',
-          },
-          {
-            id: '2',
-            number: 98,
-            title: 'Fix memory leak in dashboard',
-            repo: 'atlas/gateway',
-            author: { name: 'Alex Kim' },
-            status: 'open',
-            ciStatus: 'failing',
-            reviewStatus: 'changes_requested',
-            comments: 7,
-            updatedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-            url: 'https://github.com/atlas/gateway/pull/98',
-          },
-        ],
-        myOpenPRs: [
-          {
-            id: '3',
-            number: 145,
-            title: 'Update dependencies and fix security issues',
-            repo: 'atlas/web-ui',
-            author: { name: 'You' },
-            status: 'open',
-            ciStatus: 'passing',
-            reviewStatus: 'approved',
-            comments: 2,
-            updatedAt: new Date(now.getTime() - 1 * 60 * 60 * 1000),
-            url: 'https://github.com/atlas/web-ui/pull/145',
-          },
-          {
-            id: '4',
-            number: 143,
-            title: '[WIP] Implement command palette',
-            repo: 'atlas/web-ui',
-            author: { name: 'You' },
-            status: 'draft',
-            ciStatus: 'pending',
-            reviewStatus: 'none',
-            comments: 0,
-            updatedAt: new Date(now.getTime() - 4 * 60 * 60 * 1000),
-            url: 'https://github.com/atlas/web-ui/pull/143',
-          },
-        ],
-        recentCommits: 5,
-        notifications: 3,
+        prsAwaitingReview: prsToReview.map(transformPR),
+        myOpenPRs: myPRs.map(transformPR),
+        recentCommits: 0, // Would need commits API
+        notifications: Array.isArray(notifications) ? notifications.filter((n: any) => n.unread).length : 0,
       })
     } catch (err) {
+      console.error('GitHub fetch error:', err)
       setError('Failed to load GitHub data')
+      setData(null)
     } finally {
       setIsLoading(false)
     }
@@ -383,5 +387,5 @@ export function useGitHub() {
     fetchGitHub()
   }, [])
 
-  return { data, isLoading, error, refresh: fetchGitHub }
+  return { data, isLoading, error, isConnected, refresh: fetchGitHub }
 }

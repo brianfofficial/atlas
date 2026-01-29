@@ -235,6 +235,427 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   }),
 }));
 
+// ============================================================================
+// BRIEFING SYSTEM TABLES (Product Validation Framework)
+// ============================================================================
+
+/**
+ * Briefing drafts - Generated briefings awaiting user approval
+ * Supports daily and weekly briefing types with approval workflow
+ */
+export const briefingDrafts = sqliteTable(
+  'briefing_drafts',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'daily' | 'weekly'
+    status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'dismissed' | 'expired' | 'edited'
+    generatedAt: text('generated_at').notNull().default("datetime('now')"),
+    approvalDeadline: text('approval_deadline'), // Auto-dismiss after this time
+
+    // Briefing content (JSON)
+    content: text('content').notNull(), // Full briefing JSON
+
+    // Draft items for approval (max 5 per briefing)
+    draftItems: text('draft_items').notNull().default('[]'), // Array of DraftItem
+
+    // Metadata
+    source: text('source').notNull().default('scheduled'), // 'scheduled' | 'manual' | 'notification'
+    notificationSentAt: text('notification_sent_at'),
+    viewedAt: text('viewed_at'),
+    resolvedAt: text('resolved_at'),
+
+    // User action tracking
+    userAction: text('user_action'), // 'approved' | 'dismissed' | 'edited' | 'timeout'
+    editedContent: text('edited_content'), // If user edited before approving
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_briefing_drafts_user_id').on(table.userId),
+    statusIdx: index('idx_briefing_drafts_status').on(table.status),
+    typeIdx: index('idx_briefing_drafts_type').on(table.type),
+    generatedAtIdx: index('idx_briefing_drafts_generated_at').on(table.generatedAt),
+    userStatusIdx: index('idx_briefing_drafts_user_status').on(table.userId, table.status),
+  })
+);
+
+/**
+ * Draft items - Individual actionable items within a briefing
+ * Tracks approval/dismiss/edit actions per item
+ */
+export const draftItems = sqliteTable(
+  'draft_items',
+  {
+    id: text('id').primaryKey(),
+    briefingId: text('briefing_id')
+      .notNull()
+      .references(() => briefingDrafts.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Item details
+    type: text('type').notNull(), // 'email_draft' | 'meeting_prep' | 'follow_up' | 'calendar_note'
+    surface: text('surface').notNull(), // 'email' | 'calendar' | 'tasks'
+    title: text('title').notNull(),
+    content: text('content').notNull(), // The draft content
+    context: text('context'), // Why this was suggested
+
+    // Source references
+    sourceType: text('source_type'), // 'calendar_event' | 'email_thread' | 'memory'
+    sourceId: text('source_id'), // Reference to source (event ID, thread ID, etc.)
+    sourceMetadata: text('source_metadata').default('{}'),
+
+    // Status tracking
+    status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'dismissed' | 'edited'
+    priority: integer('priority').notNull().default(1), // 1-5, higher = more important
+
+    // User action tracking
+    actionTakenAt: text('action_taken_at'),
+    editedContent: text('edited_content'),
+    dismissReason: text('dismiss_reason'),
+
+    // Undo support (30-second window)
+    executedAt: text('executed_at'),
+    undoDeadline: text('undo_deadline'),
+    undoneAt: text('undone_at'),
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    briefingIdIdx: index('idx_draft_items_briefing_id').on(table.briefingId),
+    userIdIdx: index('idx_draft_items_user_id').on(table.userId),
+    statusIdx: index('idx_draft_items_status').on(table.status),
+    surfaceIdx: index('idx_draft_items_surface').on(table.surface),
+    typeIdx: index('idx_draft_items_type').on(table.type),
+  })
+);
+
+/**
+ * Briefing history - Completed briefings for historical analysis
+ */
+export const briefingHistory = sqliteTable(
+  'briefing_history',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    briefingId: text('briefing_id'), // Original draft ID
+    type: text('type').notNull(), // 'daily' | 'weekly'
+
+    generatedAt: text('generated_at').notNull(),
+    deliveredAt: text('delivered_at'),
+    viewedAt: text('viewed_at'),
+    completedAt: text('completed_at'),
+
+    // Content snapshot
+    content: text('content').notNull(),
+
+    // Aggregated stats
+    totalItems: integer('total_items').notNull().default(0),
+    approvedItems: integer('approved_items').notNull().default(0),
+    dismissedItems: integer('dismissed_items').notNull().default(0),
+    editedItems: integer('edited_items').notNull().default(0),
+
+    // Time metrics
+    timeToFirstAction: integer('time_to_first_action'), // Seconds from view to first action
+    totalEngagementTime: integer('total_engagement_time'), // Total seconds spent
+
+    // Quality signals
+    userSatisfaction: integer('user_satisfaction'), // 1-5 rating if provided
+    missedImportant: integer('missed_important', { mode: 'boolean' }).default(false),
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_briefing_history_user_id').on(table.userId),
+    typeIdx: index('idx_briefing_history_type').on(table.type),
+    generatedAtIdx: index('idx_briefing_history_generated_at').on(table.generatedAt),
+    userTypeIdx: index('idx_briefing_history_user_type').on(table.userId, table.type),
+  })
+);
+
+/**
+ * Briefing metrics - KPI tracking for product validation
+ * Tracks: DAAR, TTFA, DAR, Day 7 Retention, Second Surface, Unprompted Return, Edit Rate
+ */
+export const briefingMetrics = sqliteTable(
+  'briefing_metrics',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Metric identification
+    metricType: text('metric_type').notNull(), // 'daar' | 'ttfa' | 'dar' | 'retention' | 'second_surface' | 'unprompted_return' | 'edit_rate'
+
+    // Values
+    value: real('value').notNull(),
+    numerator: integer('numerator'), // For rate calculations
+    denominator: integer('denominator'), // For rate calculations
+
+    // Time context
+    periodStart: text('period_start').notNull(), // Start of measurement period
+    periodEnd: text('period_end').notNull(), // End of measurement period
+    periodType: text('period_type').notNull(), // 'daily' | 'weekly' | 'monthly' | 'cumulative'
+
+    // Additional context
+    metadata: text('metadata').default('{}'),
+
+    timestamp: text('timestamp').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_briefing_metrics_user_id').on(table.userId),
+    metricTypeIdx: index('idx_briefing_metrics_type').on(table.metricType),
+    timestampIdx: index('idx_briefing_metrics_timestamp').on(table.timestamp),
+    userMetricIdx: index('idx_briefing_metrics_user_metric').on(table.userId, table.metricType),
+  })
+);
+
+/**
+ * Briefing schedules - User-configurable briefing delivery times
+ */
+export const briefingSchedules = sqliteTable(
+  'briefing_schedules',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Schedule config
+    type: text('type').notNull(), // 'daily' | 'weekly'
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+
+    // Timing
+    hour: integer('hour').notNull().default(7), // 0-23
+    minute: integer('minute').notNull().default(30), // 0-59
+    timezone: text('timezone').notNull().default('America/New_York'),
+
+    // Weekly specific
+    dayOfWeek: integer('day_of_week'), // 0=Sunday, 1=Monday, etc. (for weekly)
+
+    // Execution tracking
+    lastRunAt: text('last_run_at'),
+    nextRunAt: text('next_run_at'),
+
+    // Delivery preferences
+    deliveryMethod: text('delivery_method').notNull().default('push'), // 'push' | 'email' | 'both'
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_briefing_schedules_user_id').on(table.userId),
+    typeIdx: index('idx_briefing_schedules_type').on(table.type),
+    enabledIdx: index('idx_briefing_schedules_enabled').on(table.enabled),
+    nextRunIdx: index('idx_briefing_schedules_next_run').on(table.nextRunAt),
+  })
+);
+
+/**
+ * User engagement tracking - Daily engagement records for retention metrics
+ */
+export const userEngagement = sqliteTable(
+  'user_engagement',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Date tracking (YYYY-MM-DD format)
+    date: text('date').notNull(),
+
+    // Session tracking
+    sessionCount: integer('session_count').notNull().default(0),
+    unpromptedSessions: integer('unprompted_sessions').notNull().default(0), // User-initiated
+    notificationSessions: integer('notification_sessions').notNull().default(0), // Notification-driven
+
+    // Briefing engagement
+    briefingsViewed: integer('briefings_viewed').notNull().default(0),
+    draftsApproved: integer('drafts_approved').notNull().default(0),
+    draftsDismissed: integer('drafts_dismissed').notNull().default(0),
+    draftsEdited: integer('drafts_edited').notNull().default(0),
+
+    // Surface usage (for Second Surface Adoption metric)
+    usedEmailSurface: integer('used_email_surface', { mode: 'boolean' }).default(false),
+    usedCalendarSurface: integer('used_calendar_surface', { mode: 'boolean' }).default(false),
+    usedTasksSurface: integer('used_tasks_surface', { mode: 'boolean' }).default(false),
+
+    // Time metrics
+    totalEngagementSeconds: integer('total_engagement_seconds').notNull().default(0),
+    firstActionAt: text('first_action_at'),
+    lastActionAt: text('last_action_at'),
+
+    // First day tracking (for Day N retention)
+    daysSinceSignup: integer('days_since_signup'),
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_user_engagement_user_id').on(table.userId),
+    dateIdx: index('idx_user_engagement_date').on(table.date),
+    userDateIdx: index('idx_user_engagement_user_date').on(table.userId, table.date),
+  })
+);
+
+/**
+ * Trust failure events - Track incidents that may erode user trust
+ */
+export const trustFailureEvents = sqliteTable(
+  'trust_failure_events',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    draftItemId: text('draft_item_id')
+      .references(() => draftItems.id, { onDelete: 'set null' }),
+
+    // Failure type
+    failureType: text('failure_type').notNull(), // 'close_call' | 'irrelevant_flood' | 'missed_critical' | 'automator_regret' | 'creepy_recall'
+    severity: text('severity').notNull().default('medium'), // 'low' | 'medium' | 'high' | 'critical'
+
+    // Details
+    description: text('description'),
+    errorPattern: text('error_pattern'), // For close_call: what type of error (wrong_recipient, wrong_tone, wrong_date)
+
+    // User feedback
+    userReported: integer('user_reported', { mode: 'boolean' }).default(false),
+    userFeedback: text('user_feedback'),
+
+    // Resolution
+    resolved: integer('resolved', { mode: 'boolean' }).default(false),
+    resolution: text('resolution'),
+
+    timestamp: text('timestamp').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_trust_failure_user_id').on(table.userId),
+    failureTypeIdx: index('idx_trust_failure_type').on(table.failureType),
+    timestampIdx: index('idx_trust_failure_timestamp').on(table.timestamp),
+  })
+);
+
+/**
+ * Pinned memories - Important context that persists beyond 7-day rolling window
+ */
+export const pinnedMemories = sqliteTable(
+  'pinned_memories',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    memoryEntryId: text('memory_entry_id')
+      .references(() => memoryEntries.id, { onDelete: 'set null' }),
+
+    // Pinned content
+    type: text('type').notNull(), // 'relationship' | 'preference' | 'pattern' | 'important_context'
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+
+    // Source tracking
+    sourceType: text('source_type'), // 'user_pin' | 'auto_extracted' | 'weekly_consolidation'
+    extractedFrom: text('extracted_from'), // Reference to original data
+
+    // Usage tracking
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: text('last_used_at'),
+
+    // Validity
+    validUntil: text('valid_until'), // Optional expiry for time-bound info
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_pinned_memories_user_id').on(table.userId),
+    typeIdx: index('idx_pinned_memories_type').on(table.type),
+  })
+);
+
+// ============================================================================
+// BRIEFING SYSTEM RELATIONS
+// ============================================================================
+
+export const briefingDraftsRelations = relations(briefingDrafts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [briefingDrafts.userId],
+    references: [users.id],
+  }),
+  items: many(draftItems),
+}));
+
+export const draftItemsRelations = relations(draftItems, ({ one }) => ({
+  briefing: one(briefingDrafts, {
+    fields: [draftItems.briefingId],
+    references: [briefingDrafts.id],
+  }),
+  user: one(users, {
+    fields: [draftItems.userId],
+    references: [users.id],
+  }),
+}));
+
+export const briefingHistoryRelations = relations(briefingHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [briefingHistory.userId],
+    references: [users.id],
+  }),
+}));
+
+export const briefingMetricsRelations = relations(briefingMetrics, ({ one }) => ({
+  user: one(users, {
+    fields: [briefingMetrics.userId],
+    references: [users.id],
+  }),
+}));
+
+export const briefingSchedulesRelations = relations(briefingSchedules, ({ one }) => ({
+  user: one(users, {
+    fields: [briefingSchedules.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userEngagementRelations = relations(userEngagement, ({ one }) => ({
+  user: one(users, {
+    fields: [userEngagement.userId],
+    references: [users.id],
+  }),
+}));
+
+export const trustFailureEventsRelations = relations(trustFailureEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [trustFailureEvents.userId],
+    references: [users.id],
+  }),
+  draftItem: one(draftItems, {
+    fields: [trustFailureEvents.draftItemId],
+    references: [draftItems.id],
+  }),
+}));
+
+export const pinnedMemoriesRelations = relations(pinnedMemories, ({ one }) => ({
+  user: one(users, {
+    fields: [pinnedMemories.userId],
+    references: [users.id],
+  }),
+  memoryEntry: one(memoryEntries, {
+    fields: [pinnedMemories.memoryEntryId],
+    references: [memoryEntries.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -246,3 +667,15 @@ export type Preferences = typeof preferences.$inferSelect;
 export type Goal = typeof goals.$inferSelect;
 export type MemoryEntry = typeof memoryEntries.$inferSelect;
 export type CostEntry = typeof costEntries.$inferSelect;
+
+// Briefing system types
+export type BriefingDraft = typeof briefingDrafts.$inferSelect;
+export type NewBriefingDraft = typeof briefingDrafts.$inferInsert;
+export type DraftItem = typeof draftItems.$inferSelect;
+export type NewDraftItem = typeof draftItems.$inferInsert;
+export type BriefingHistory = typeof briefingHistory.$inferSelect;
+export type BriefingMetric = typeof briefingMetrics.$inferSelect;
+export type BriefingSchedule = typeof briefingSchedules.$inferSelect;
+export type UserEngagement = typeof userEngagement.$inferSelect;
+export type TrustFailureEvent = typeof trustFailureEvents.$inferSelect;
+export type PinnedMemory = typeof pinnedMemories.$inferSelect;

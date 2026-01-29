@@ -7,8 +7,7 @@ import {
   LogOut,
   Settings,
   Smartphone,
-  Moon,
-  Sun,
+  Brain,
   Shield,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,12 +21,20 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { MemoryPanel } from '@/components/memory/memory-panel'
+import { useAuthContext } from '@/components/auth/auth-provider'
 
 interface HeaderProps {
   sidebarCollapsed: boolean
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
+  const { user, logout, isLoggingOut } = useAuthContext()
+
+  const userInitials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : 'U'
+
   return (
     <header
       className={`fixed top-0 right-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-300 ${
@@ -47,6 +54,15 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
         {/* Right side - actions */}
         <div className="flex items-center gap-2">
+          {/* Memory Panel */}
+          <MemoryPanel
+            trigger={
+              <Button variant="ghost" size="icon" title="Atlas Memory">
+                <Brain className="h-5 w-5" />
+              </Button>
+            }
+          />
+
           {/* Notifications */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -119,20 +135,20 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
               <Button variant="ghost" className="gap-2 px-2">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    AD
+                    {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <span className="hidden md:inline text-sm font-medium">
-                  Admin
+                  {user?.username || 'User'}
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col">
-                  <span>Admin User</span>
+                  <span>{user?.username || 'User'}</span>
                   <span className="text-xs font-normal text-muted-foreground">
-                    admin@example.com
+                    {user?.email || 'No email'}
                   </span>
                 </div>
               </DropdownMenuLabel>
@@ -156,9 +172,13 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-danger focus:text-danger">
+              <DropdownMenuItem
+                className="text-danger focus:text-danger"
+                onClick={() => logout()}
+                disabled={isLoggingOut}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign out
+                {isLoggingOut ? 'Signing out...' : 'Sign out'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

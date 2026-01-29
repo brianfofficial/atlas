@@ -256,63 +256,56 @@ function hasConflicts(events: CalendarEvent[]): boolean {
   return false
 }
 
+// Event color palette for visual variety
+const EVENT_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
+
 // Hook for fetching calendar data
 export function useCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState<boolean | null>(null)
 
   const fetchEvents = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // This would call the actual calendar API
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Import the calendar API client dynamically
+      const { isCalendarConnected, getTodayEvents, hasVideoConference } = await import('@/lib/api/calendar')
 
-      const now = new Date()
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      // Check if calendar is connected
+      const connected = await isCalendarConnected()
+      setIsConnected(connected)
 
-      setEvents([
-        {
-          id: '1',
-          title: 'Team Standup',
-          startTime: new Date(today.getTime() + 9 * 60 * 60 * 1000),
-          endTime: new Date(today.getTime() + 9.5 * 60 * 60 * 1000),
-          isVideoCall: true,
-          attendees: 8,
-          color: '#3b82f6',
-        },
-        {
-          id: '2',
-          title: 'Product Review',
-          startTime: new Date(today.getTime() + 11 * 60 * 60 * 1000),
-          endTime: new Date(today.getTime() + 12 * 60 * 60 * 1000),
-          location: 'Conference Room A',
-          attendees: 5,
-          color: '#10b981',
-        },
-        {
-          id: '3',
-          title: '1:1 with Manager',
-          startTime: new Date(today.getTime() + 14 * 60 * 60 * 1000),
-          endTime: new Date(today.getTime() + 14.5 * 60 * 60 * 1000),
-          isVideoCall: true,
-          attendees: 2,
-          color: '#8b5cf6',
-        },
-        {
-          id: '4',
-          title: 'Sprint Planning',
-          startTime: new Date(today.getTime() + 15 * 60 * 60 * 1000),
-          endTime: new Date(today.getTime() + 16 * 60 * 60 * 1000),
-          isVideoCall: true,
-          attendees: 12,
-          color: '#f59e0b',
-        },
-      ])
+      if (!connected) {
+        // Return empty array if not connected - UI will show connection prompt
+        setEvents([])
+        return
+      }
+
+      // Fetch real events
+      const apiEvents = await getTodayEvents()
+
+      // Transform API events to widget format
+      const widgetEvents: CalendarEvent[] = apiEvents.map((event, index) => ({
+        id: event.id,
+        title: event.summary,
+        startTime: new Date(event.start),
+        endTime: new Date(event.end),
+        location: event.location,
+        isVideoCall: hasVideoConference(event),
+        attendees: event.attendees?.length ?? 1,
+        description: event.description,
+        color: EVENT_COLORS[index % EVENT_COLORS.length],
+        isAllDay: event.isAllDay,
+      }))
+
+      setEvents(widgetEvents)
     } catch (err) {
+      console.error('Calendar fetch error:', err)
       setError('Failed to load calendar')
+      setEvents([])
     } finally {
       setIsLoading(false)
     }
@@ -322,5 +315,5 @@ export function useCalendar() {
     fetchEvents()
   }, [])
 
-  return { events, isLoading, error, refresh: fetchEvents }
+  return { events, isLoading, error, isConnected, refresh: fetchEvents }
 }

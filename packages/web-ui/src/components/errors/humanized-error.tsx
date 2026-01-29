@@ -117,7 +117,7 @@ export function HumanizedError({
 
   if (inline) {
     return (
-      <Alert variant="destructive" className={className}>
+      <Alert variant="danger" className={className}>
         <Icon className="h-4 w-4" />
         <AlertTitle>{translation.title}</AlertTitle>
         <AlertDescription className="mt-2">

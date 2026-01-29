@@ -299,61 +299,68 @@ export function useEmailSummary() {
   const [data, setData] = useState<EmailSummaryData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState<boolean | null>(null)
 
   const fetchEmail = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // This would call the actual Gmail API
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Import the Gmail API client dynamically
+      const { isGmailConnected, getInboxSummary, getVIPSenders } = await import('@/lib/api/gmail')
 
-      const now = new Date()
+      // Check if Gmail is connected
+      const connected = await isGmailConnected()
+      setIsConnected(connected)
+
+      if (!connected) {
+        // Return null if not connected - UI will show connection prompt
+        setData(null)
+        return
+      }
+
+      // Fetch real inbox summary and VIP senders
+      const [inboxSummary, vipSenders] = await Promise.all([
+        getInboxSummary(),
+        getVIPSenders().catch(() => []),
+      ])
+
+      // Transform API threads to widget format
+      const recentThreads: EmailThread[] = inboxSummary.recentThreads
+        .slice(0, 5)
+        .map((thread) => {
+          const firstMessage = thread.messages[0]
+          const isVIP = vipSenders.some(
+            (vip) => vip.toLowerCase() === firstMessage?.from?.email?.toLowerCase()
+          )
+
+          return {
+            id: thread.id,
+            from: {
+              name: firstMessage?.from?.name || firstMessage?.from?.email || 'Unknown',
+              email: firstMessage?.from?.email || '',
+            },
+            subject: firstMessage?.subject || thread.snippet,
+            snippet: thread.snippet,
+            receivedAt: new Date(firstMessage?.date || Date.now()),
+            isUnread: firstMessage?.isUnread ?? false,
+            isStarred: firstMessage?.isStarred ?? false,
+            isFlagged: firstMessage?.labelIds?.includes('IMPORTANT') ?? false,
+            isVIP,
+          }
+        })
 
       setData({
-        unreadCount: 12,
-        starredCount: 3,
-        flaggedCount: 2,
-        vipSenders: ['Sarah Chen', 'Alex Thompson'],
-        recentThreads: [
-          {
-            id: '1',
-            from: { name: 'GitHub', email: 'noreply@github.com' },
-            subject: 'Your pull request was approved',
-            snippet: 'alex-thompson approved your pull request #142',
-            receivedAt: new Date(now.getTime() - 15 * 60 * 1000),
-            isUnread: true,
-          },
-          {
-            id: '2',
-            from: { name: 'Sarah Chen', email: 'sarah@company.com' },
-            subject: 'Re: Q4 Planning Document',
-            snippet: 'Looks good! I added a few comments on the timeline section...',
-            receivedAt: new Date(now.getTime() - 45 * 60 * 1000),
-            isUnread: true,
-            isVIP: true,
-            isStarred: true,
-          },
-          {
-            id: '3',
-            from: { name: 'Jira', email: 'notifications@atlassian.com' },
-            subject: '[PROJ-123] Bug: Login page not loading',
-            snippet: 'Mike Johnson commented: "I can reproduce this on Chrome..."',
-            receivedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-            isFlagged: true,
-          },
-          {
-            id: '4',
-            from: { name: 'Alex Thompson', email: 'alex@company.com' },
-            subject: 'Quick sync tomorrow?',
-            snippet: 'Hey, do you have 15 minutes tomorrow to discuss the API changes?',
-            receivedAt: new Date(now.getTime() - 4 * 60 * 60 * 1000),
-            isVIP: true,
-          },
-        ],
+        unreadCount: inboxSummary.unreadCount,
+        starredCount: inboxSummary.starredCount,
+        flaggedCount: inboxSummary.importantCount || 0,
+        vipSenders: vipSenders.slice(0, 5),
+        recentThreads,
       })
     } catch (err) {
+      console.error('Email fetch error:', err)
       setError('Failed to load email')
+      setData(null)
     } finally {
       setIsLoading(false)
     }
@@ -363,5 +370,5 @@ export function useEmailSummary() {
     fetchEmail()
   }, [])
 
-  return { data, isLoading, error, refresh: fetchEmail }
+  return { data, isLoading, error, isConnected, refresh: fetchEmail }
 }
