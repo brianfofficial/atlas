@@ -4,7 +4,8 @@
 
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert'
-import { ModelRouter, type TaskComplexity } from './router.js'
+import { ModelRouter } from './router.js'
+import type { TaskComplexity } from './types.js'
 
 describe('Model Router', () => {
   let router: ModelRouter
