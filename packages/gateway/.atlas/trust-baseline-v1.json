@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "type": "trust-baseline",
+    "immutable": true,
+    "readonly": true,
+    "createdAt": "2026-01-29T22:35:00.000Z",
+    "commit": "123d841a",
+    "branch": "phase-landing",
+    "rolloutPhase": "Phase 1 (Conservative)"
+  },
+  "invariants": {
+    "INVARIANT_1": {
+      "name": "NO_SILENT_EXECUTION",
+      "description": "Every external action requires an approval record in the database before execution",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_2": {
+      "name": "NO_INVISIBLE_MEMORY",
+      "description": "Any memory influencing responses must be disclosed to the user",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_3": {
+      "name": "NO_BACKGROUND_WITHOUT_CONSENT",
+      "description": "Scheduler and background processing require explicit user opt-in",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_4": {
+      "name": "NO_AUTO_APPROVAL_DEFAULTS",
+      "description": "All auto-approval rules start disabled",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_5": {
+      "name": "EXECUTION_REQUIRES_PREVIEW",
+      "description": "Content hash must match between preview and execution",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_6": {
+      "name": "UNDO_MUST_BE_DURABLE",
+      "description": "Undo records stored in database, not memory",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_7": {
+      "name": "NO_SYNTHETIC_DATA",
+      "description": "No fake/demo data in production environment",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_8": {
+      "name": "AUDIT_IMMUTABLE",
+      "description": "Audit logs cannot be deleted or modified",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_9": {
+      "name": "MFA_REQUIRED",
+      "description": "All protected resources require MFA verification",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_10": {
+      "name": "DEVICE_CONSENT_REQUIRED",
+      "description": "Cross-device broadcast needs device approval",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_11": {
+      "name": "MEMORY_RETENTION_ENFORCED",
+      "description": "7-day rolling window for memory retention",
+      "status": "non-negotiable"
+    },
+    "INVARIANT_12": {
+      "name": "RATE_LIMITS_ENFORCED",
+      "description": "Rate limits cannot be bypassed",
+      "status": "non-negotiable"
+    }
+  },
+  "disarmedFeatures": {
+    "scheduler": { "enabled": false, "default": false },
+    "backgroundProcessing": { "enabled": false, "default": false },
+    "proactiveNotifications": { "enabled": false, "default": false },
+    "autoApproval": { "enabled": false, "default": false },
+    "memoryPinning": { "enabled": false, "default": false }
+  },
+  "neverAutoApprove": [
+    "credential_access",
+    "system_command",
+    "file_delete"
+  ],
+  "quorumRequired": [
+    "credential_access",
+    "system_command"
+  ],
+  "startupChecks": [
+    "no_auto_approval_defaults",
+    "scheduler_disabled",
+    "mfa_required",
+    "audit_logging_enabled",
+    "rate_limits_enforced",
+    "no_mock_data_production",
+    "database_tables"
+  ],
+  "operationalState": {
+    "status": "idle",
+    "backgroundTasks": 0,
+    "pendingApprovals": 0,
+    "scheduledJobs": 0
+  }
+}
