@@ -81,21 +81,22 @@ export class MetricsTracker {
     const date = this.getTodayDate();
     const engagement = await this.getOrCreateEngagement(userId, date);
 
+    const updates: Record<string, unknown> = {
+      sessionCount: sql`${userEngagement.sessionCount} + 1`,
+      lastActionAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (source === 'user_initiated') {
+      updates.unpromptedSessions = sql`${userEngagement.unpromptedSessions} + 1`;
+    }
+    if (source === 'notification') {
+      updates.notificationSessions = sql`${userEngagement.notificationSessions} + 1`;
+    }
+
     await this.db
       .update(userEngagement)
-      .set({
-        sessionCount: sql`${userEngagement.sessionCount} + 1`,
-        unpromptedSessions:
-          source === 'user_initiated'
-            ? sql`${userEngagement.unpromptedSessions} + 1`
-            : userEngagement.unpromptedSessions,
-        notificationSessions:
-          source === 'notification'
-            ? sql`${userEngagement.notificationSessions} + 1`
-            : userEngagement.notificationSessions,
-        lastActionAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
+      .set(updates)
       .where(eq(userEngagement.id, engagement.id));
   }
 
@@ -350,7 +351,7 @@ export class MetricsTracker {
     const signupDate = new Date(user[0].createdAt);
     const targetDate = new Date(signupDate);
     targetDate.setDate(targetDate.getDate() + day);
-    const targetDateStr = targetDate.toISOString().split('T')[0];
+    const targetDateStr = this.formatDate(targetDate);
 
     // Check if user had any approval on that day
     const engagement = await this.db
@@ -609,13 +610,14 @@ export class MetricsTracker {
 
     // For retention metrics, we can't really calculate "previous"
     if (metricType.startsWith('retention_')) {
+      const retentionThreshold = metricType === 'retention_d7' ? SUCCESS_THRESHOLDS.retention_d7 : 0.4;
       return {
         type: metricType,
         currentValue: current.value,
         previousValue: current.value,
         change: 0,
         trend: 'stable',
-        isHealthy: current.value >= (SUCCESS_THRESHOLDS as Record<string, number>)[metricType] || 0,
+        isHealthy: current.value >= retentionThreshold,
         isAtKillThreshold: false,
       };
     }
@@ -807,7 +809,7 @@ export class MetricsTracker {
     for (const day of [1, 3, 7, 14, 30]) {
       const targetDate = new Date(cohortDate);
       targetDate.setDate(targetDate.getDate() + day);
-      const targetDateStr = targetDate.toISOString().split('T')[0];
+      const targetDateStr = this.formatDate(targetDate);
 
       // Count users with any approval on that day
       let retained = 0;
@@ -835,11 +837,11 @@ export class MetricsTracker {
       cohortDate,
       cohortSize,
       retention: {
-        day1: retention.day1,
-        day3: retention.day3,
-        day7: retention.day7,
-        day14: retention.day14,
-        day30: retention.day30,
+        day1: retention.day1 ?? 0,
+        day3: retention.day3 ?? 0,
+        day7: retention.day7 ?? 0,
+        day14: retention.day14 ?? 0,
+        day30: retention.day30 ?? 0,
       },
     };
   }
@@ -927,22 +929,31 @@ export class MetricsTracker {
   }
 
   private getTodayDate(): string {
-    return new Date().toISOString().split('T')[0];
+    return this.formatDate(new Date());
   }
 
   private getDateMinusDays(days: number): string {
     const date = new Date();
     date.setDate(date.getDate() - days);
-    return date.toISOString().split('T')[0];
+    return this.formatDate(date);
+  }
+
+  private formatDate(date: Date): string {
+    const isoString = date.toISOString();
+    const datePart = isoString.split('T')[0];
+    return datePart || isoString.substring(0, 10);
   }
 
   private calculateMedian(values: number[]): number {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0
-      ? sorted[mid]
-      : (sorted[mid - 1] + sorted[mid]) / 2;
+    if (sorted.length % 2 !== 0) {
+      return sorted[mid] ?? 0;
+    }
+    const left = sorted[mid - 1] ?? 0;
+    const right = sorted[mid] ?? 0;
+    return (left + right) / 2;
   }
 
   /**
@@ -987,8 +998,8 @@ export class MetricsTracker {
       editRate: accepted > 0 ? e.draftsEdited / accepted : 0,
       ttfa: undefined, // Would need to calculate from timestamps
       totalEngagementTime: e.totalEngagementSeconds,
-      usedEmail: e.usedEmailSurface || false,
-      usedCalendar: e.usedCalendarSurface || false,
+      usedEmail: Boolean(e.usedEmailSurface),
+      usedCalendar: Boolean(e.usedCalendarSurface),
       totalSessions: e.sessionCount,
       unpromptedSessions: e.unpromptedSessions,
     };

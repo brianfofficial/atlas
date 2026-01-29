@@ -172,6 +172,7 @@ export interface BriefingContent {
 export interface DraftItemData {
   id: string;
   briefingId: string;
+  userId: string;
   type: DraftItemType;
   surface: DraftItemSurface;
   title: string;

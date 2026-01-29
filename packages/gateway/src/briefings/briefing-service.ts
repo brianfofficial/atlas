@@ -159,6 +159,7 @@ export class BriefingService {
       draftItems: items.map((item) => ({
         id: item.id,
         briefingId: item.briefingId,
+        userId: item.userId,
         type: item.type as any,
         surface: item.surface as any,
         title: item.title,
@@ -520,7 +521,7 @@ export class BriefingService {
     return {
       userId,
       experimentDay: dayNumber,
-      experimentStartDate: startDate.toISOString().split('T')[0],
+      experimentStartDate: startDate.toISOString().split('T')[0] || startDate.toISOString().substring(0, 10),
       dailyChecks: {
         briefingGenerated: !!todayBriefing,
         notificationSent: todayBriefing?.briefing.status !== 'pending',

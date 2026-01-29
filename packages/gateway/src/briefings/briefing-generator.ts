@@ -735,6 +735,7 @@ export class BriefingGenerator {
     return {
       id,
       briefingId,
+      userId,
       type: data.type,
       surface: data.surface,
       title: data.title,
@@ -847,17 +848,17 @@ export class BriefingGenerator {
     // Group events by day
     const eventsByDay = new Map<string, BriefingCalendarEvent[]>();
     for (const event of events) {
-      const day = new Date(event.startTime).toISOString().split('T')[0];
-      const existing = eventsByDay.get(day) || [];
+      const dateStr = new Date(event.startTime).toISOString().split('T')[0] || '';
+      const existing = eventsByDay.get(dateStr) || [];
       existing.push(event);
-      eventsByDay.set(day, existing);
+      eventsByDay.set(dateStr, existing);
     }
 
     // Find busiest days
     const sortedDays = Array.from(eventsByDay.entries())
       .sort((a, b) => b[1].length - a[1].length);
 
-    const busiestDay = sortedDays[0]?.[0] || '';
+    const busiestDay = sortedDays[0]?.[0] ?? '';
     const busiestDays = sortedDays.slice(0, 3).map(([day]) => day);
 
     // Find potential deep work blocks (days with fewer meetings)

@@ -29,9 +29,11 @@ import credentialsRoutes from './routes/credentials.js';
 import preferencesRoutes from './routes/preferences.js';
 import memoryRoutes from './routes/memory.js';
 import auditRoutes from './routes/audit.js';
+import briefingsRoutes from './routes/briefings.js';
 
 import { initializeDatabase } from '../db/index.js';
 import { EventBroadcaster, getEventBroadcaster } from '../events/event-broadcaster.js';
+import { initializeBriefingService, startBriefingService, stopBriefingService } from '../briefings/briefing-service.js';
 import { DEFAULT_CONFIG, type AtlasConfig } from '../index.js';
 
 // Server logger
@@ -112,6 +114,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.use('/api/preferences/*', authMiddleware());
   app.use('/api/memory/*', authMiddleware());
   app.use('/api/audit/*', authMiddleware());
+  app.use('/api/briefings/*', authMiddleware());
 
   app.route('/api/approvals', approvalsRoutes);
   app.route('/api/dashboard', dashboardRoutes);
@@ -120,6 +123,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.route('/api/preferences', preferencesRoutes);
   app.route('/api/memory', memoryRoutes);
   app.route('/api/audit', auditRoutes);
+  app.route('/api/briefings', briefingsRoutes);
 
   // 404 handler
   app.notFound((c) => {
@@ -153,11 +157,19 @@ export async function startServer(config: Partial<AtlasConfig> = {}): Promise<vo
 
   // Initialize database
   log.info('Initializing database...');
-  await initializeDatabase();
+  const db = await initializeDatabase();
 
   // Initialize event broadcaster (for WebSocket)
   log.info('Initializing event broadcaster...');
   getEventBroadcaster();
+
+  // Initialize briefing service (Product Validation Framework)
+  log.info('Initializing briefing service...');
+  initializeBriefingService(db, {
+    enableScheduler: true,
+    experimentMode: process.env.ATLAS_EXPERIMENT_MODE === 'true',
+  });
+  startBriefingService();
 
   // Create server
   const app = createServer(mergedConfig);

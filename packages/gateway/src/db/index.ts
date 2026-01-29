@@ -56,13 +56,16 @@ export function getSQLite(): Database.Database {
   return sqlite;
 }
 
+// Export database type for use in other modules
+export type Database = ReturnType<typeof drizzle<typeof schema>>;
+
 /**
  * Initialize the database connection and run migrations
  */
-export async function initializeDatabase(): Promise<void> {
+export async function initializeDatabase(): Promise<Database> {
   if (db) {
     log.info('Database already initialized');
-    return;
+    return db;
   }
 
   // Ensure database directory exists with secure permissions
@@ -102,6 +105,8 @@ export async function initializeDatabase(): Promise<void> {
 
   // Run migrations (create tables if they don't exist)
   await runMigrations();
+
+  return db;
 }
 
 /**
@@ -292,6 +297,216 @@ function createInitialSchema(): void {
     CREATE INDEX IF NOT EXISTS idx_cost_entries_user_id ON cost_entries(user_id);
     CREATE INDEX IF NOT EXISTS idx_cost_entries_model_id ON cost_entries(model_id);
     CREATE INDEX IF NOT EXISTS idx_cost_entries_created_at ON cost_entries(created_at);
+  `);
+
+  // ============================================================================
+  // BRIEFING SYSTEM TABLES (Product Validation Framework)
+  // ============================================================================
+
+  // Briefing drafts table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS briefing_drafts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      approval_deadline TEXT,
+      content TEXT NOT NULL,
+      draft_items TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'scheduled',
+      notification_sent_at TEXT,
+      viewed_at TEXT,
+      resolved_at TEXT,
+      user_action TEXT,
+      edited_content TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_briefing_drafts_user_id ON briefing_drafts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_briefing_drafts_status ON briefing_drafts(status);
+    CREATE INDEX IF NOT EXISTS idx_briefing_drafts_type ON briefing_drafts(type);
+    CREATE INDEX IF NOT EXISTS idx_briefing_drafts_generated_at ON briefing_drafts(generated_at);
+  `);
+
+  // Draft items table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS draft_items (
+      id TEXT PRIMARY KEY,
+      briefing_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      context TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      source_metadata TEXT DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      priority INTEGER NOT NULL DEFAULT 1,
+      action_taken_at TEXT,
+      edited_content TEXT,
+      dismiss_reason TEXT,
+      executed_at TEXT,
+      undo_deadline TEXT,
+      undone_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (briefing_id) REFERENCES briefing_drafts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_draft_items_briefing_id ON draft_items(briefing_id);
+    CREATE INDEX IF NOT EXISTS idx_draft_items_user_id ON draft_items(user_id);
+    CREATE INDEX IF NOT EXISTS idx_draft_items_status ON draft_items(status);
+    CREATE INDEX IF NOT EXISTS idx_draft_items_surface ON draft_items(surface);
+  `);
+
+  // Briefing history table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS briefing_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      briefing_id TEXT,
+      type TEXT NOT NULL,
+      generated_at TEXT NOT NULL,
+      delivered_at TEXT,
+      viewed_at TEXT,
+      completed_at TEXT,
+      content TEXT NOT NULL,
+      total_items INTEGER NOT NULL DEFAULT 0,
+      approved_items INTEGER NOT NULL DEFAULT 0,
+      dismissed_items INTEGER NOT NULL DEFAULT 0,
+      edited_items INTEGER NOT NULL DEFAULT 0,
+      time_to_first_action INTEGER,
+      total_engagement_time INTEGER,
+      user_satisfaction INTEGER,
+      missed_important INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_briefing_history_user_id ON briefing_history(user_id);
+    CREATE INDEX IF NOT EXISTS idx_briefing_history_type ON briefing_history(type);
+    CREATE INDEX IF NOT EXISTS idx_briefing_history_generated_at ON briefing_history(generated_at);
+  `);
+
+  // Briefing metrics table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS briefing_metrics (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      metric_type TEXT NOT NULL,
+      value REAL NOT NULL,
+      numerator INTEGER,
+      denominator INTEGER,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      period_type TEXT NOT NULL,
+      metadata TEXT DEFAULT '{}',
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_briefing_metrics_user_id ON briefing_metrics(user_id);
+    CREATE INDEX IF NOT EXISTS idx_briefing_metrics_type ON briefing_metrics(metric_type);
+    CREATE INDEX IF NOT EXISTS idx_briefing_metrics_timestamp ON briefing_metrics(timestamp);
+  `);
+
+  // Briefing schedules table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS briefing_schedules (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      hour INTEGER NOT NULL DEFAULT 7,
+      minute INTEGER NOT NULL DEFAULT 30,
+      timezone TEXT NOT NULL DEFAULT 'America/New_York',
+      day_of_week INTEGER,
+      last_run_at TEXT,
+      next_run_at TEXT,
+      delivery_method TEXT NOT NULL DEFAULT 'push',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_briefing_schedules_user_id ON briefing_schedules(user_id);
+    CREATE INDEX IF NOT EXISTS idx_briefing_schedules_enabled ON briefing_schedules(enabled);
+    CREATE INDEX IF NOT EXISTS idx_briefing_schedules_next_run ON briefing_schedules(next_run_at);
+  `);
+
+  // User engagement table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS user_engagement (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      session_count INTEGER NOT NULL DEFAULT 0,
+      unprompted_sessions INTEGER NOT NULL DEFAULT 0,
+      notification_sessions INTEGER NOT NULL DEFAULT 0,
+      briefings_viewed INTEGER NOT NULL DEFAULT 0,
+      drafts_approved INTEGER NOT NULL DEFAULT 0,
+      drafts_dismissed INTEGER NOT NULL DEFAULT 0,
+      drafts_edited INTEGER NOT NULL DEFAULT 0,
+      used_email_surface INTEGER DEFAULT 0,
+      used_calendar_surface INTEGER DEFAULT 0,
+      used_tasks_surface INTEGER DEFAULT 0,
+      total_engagement_seconds INTEGER NOT NULL DEFAULT 0,
+      first_action_at TEXT,
+      last_action_at TEXT,
+      days_since_signup INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_engagement_user_id ON user_engagement(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_engagement_date ON user_engagement(date);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_engagement_user_date ON user_engagement(user_id, date);
+  `);
+
+  // Trust failure events table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS trust_failure_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      draft_item_id TEXT,
+      failure_type TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'medium',
+      description TEXT,
+      error_pattern TEXT,
+      user_reported INTEGER DEFAULT 0,
+      user_feedback TEXT,
+      resolved INTEGER DEFAULT 0,
+      resolution TEXT,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (draft_item_id) REFERENCES draft_items(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_trust_failure_user_id ON trust_failure_events(user_id);
+    CREATE INDEX IF NOT EXISTS idx_trust_failure_type ON trust_failure_events(failure_type);
+    CREATE INDEX IF NOT EXISTS idx_trust_failure_timestamp ON trust_failure_events(timestamp);
+  `);
+
+  // Pinned memories table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS pinned_memories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      memory_entry_id TEXT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_type TEXT,
+      extracted_from TEXT,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at TEXT,
+      valid_until TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (memory_entry_id) REFERENCES memory_entries(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pinned_memories_user_id ON pinned_memories(user_id);
+    CREATE INDEX IF NOT EXISTS idx_pinned_memories_type ON pinned_memories(type);
   `);
 
   log.info('Initial database schema created');

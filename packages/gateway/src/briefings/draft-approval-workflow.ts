@@ -842,6 +842,7 @@ export class DraftApprovalWorkflow {
     return {
       id: item.id,
       briefingId: item.briefingId,
+      userId: item.userId,
       type: item.type as DraftItemType,
       surface: item.surface as DraftItemSurface,
       title: item.title,

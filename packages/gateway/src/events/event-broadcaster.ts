@@ -19,7 +19,19 @@ export type EventType =
   | 'approval:resolved'
   | 'security:alert'
   | 'cost:update'
-  | 'session:expired';
+  | 'session:expired'
+  // Briefing events
+  | 'briefing:generated'
+  | 'briefing:viewed'
+  | 'briefing:completed'
+  | 'draft:approved'
+  | 'draft:dismissed'
+  | 'draft:edited'
+  | 'draft:executed'
+  | 'draft:undone'
+  | 'metrics:updated'
+  | 'trust:failure'
+  | 'schedule:triggered';
 
 export interface BroadcastEvent<T = unknown> {
   type: EventType;
