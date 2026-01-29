@@ -25,3 +25,13 @@ export { InputSanitizer, getInputSanitizer } from './input-sanitizer.js';
 
 // Output validation (exfiltration prevention)
 export { OutputValidator, getOutputValidator } from './output-validator.js';
+
+// File permission security
+export * from './file-permissions.js';
+
+// Startup security verification
+export { runSecurityVerification, quickSecurityCheck } from './startup-verification.js';
+export type { SecurityCheck, SecurityVerificationResult, SecurityLevel } from './startup-verification.js';
+
+// Data encryption for sensitive database fields
+export { DataEncryptionManager, getDataEncryptionManager, SENSITIVE_FIELDS } from './data-encryption.js';

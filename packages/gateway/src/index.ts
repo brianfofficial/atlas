@@ -140,3 +140,37 @@ export async function checkSecurityPosture(): Promise<string[]> {
 
   return issues;
 }
+
+/**
+ * Run comprehensive security verification on startup
+ * Checks file permissions, credential storage, and configuration
+ */
+export async function runStartupSecurityVerification(options?: {
+  autoFix?: boolean;
+  failOnCritical?: boolean;
+}): Promise<{
+  secure: boolean;
+  issues: string[];
+}> {
+  const { runSecurityVerification } = await import('./security/startup-verification.js');
+  const { secureAllDatabaseFiles } = await import('./db/index.js');
+
+  // First, secure all database files
+  secureAllDatabaseFiles();
+
+  // Run full security verification
+  const result = await runSecurityVerification(options);
+
+  const issues: string[] = [];
+  for (const blocker of result.blockers) {
+    issues.push(`CRITICAL: ${blocker.name} - ${blocker.message}`);
+  }
+  for (const warning of result.warnings) {
+    issues.push(`WARNING: ${warning.name} - ${warning.message}`);
+  }
+
+  return {
+    secure: result.overallStatus === 'secure',
+    issues,
+  };
+}

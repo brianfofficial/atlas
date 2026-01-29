@@ -10,12 +10,16 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, chmodSync, statSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import pinoModule from 'pino';
 import * as schema from './schema.js';
+
+// Secure file permissions (owner read/write only)
+const SECURE_FILE_MODE = 0o600;
+const SECURE_DIR_MODE = 0o700;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const log = (pinoModule as any)({ name: 'database' });
@@ -61,14 +65,29 @@ export async function initializeDatabase(): Promise<void> {
     return;
   }
 
-  // Ensure database directory exists
+  // Ensure database directory exists with secure permissions
   if (!existsSync(DB_DIR)) {
-    mkdirSync(DB_DIR, { recursive: true });
-    log.info({ dir: DB_DIR }, 'Created database directory');
+    mkdirSync(DB_DIR, { recursive: true, mode: SECURE_DIR_MODE });
+    log.info({ dir: DB_DIR }, 'Created database directory with secure permissions (700)');
+  } else {
+    // Verify and fix directory permissions
+    enforceDirPermissions(DB_DIR);
   }
+
+  // Track if this is a new database
+  const isNewDatabase = !existsSync(DB_PATH);
 
   // Create SQLite connection
   sqlite = new Database(DB_PATH);
+
+  // If new database, set secure file permissions
+  if (isNewDatabase) {
+    chmodSync(DB_PATH, SECURE_FILE_MODE);
+    log.info({ path: DB_PATH }, 'Set secure permissions (600) on new database');
+  } else {
+    // Verify existing database permissions
+    enforceFilePermissions(DB_PATH);
+  }
 
   // Enable WAL mode for better concurrent performance
   sqlite.pragma('journal_mode = WAL');
@@ -276,6 +295,73 @@ function createInitialSchema(): void {
   `);
 
   log.info('Initial database schema created');
+}
+
+/**
+ * Enforce secure file permissions (600) on a file
+ */
+function enforceFilePermissions(filePath: string): void {
+  try {
+    const stats = statSync(filePath);
+    const currentMode = stats.mode & 0o777;
+
+    // Check if file is world or group readable/writable
+    if (currentMode & 0o077) {
+      log.warn(
+        { path: filePath, currentMode: currentMode.toString(8) },
+        'SECURITY: Database file has insecure permissions, fixing to 600'
+      );
+      chmodSync(filePath, SECURE_FILE_MODE);
+      log.info({ path: filePath }, 'Fixed file permissions to 600');
+    }
+  } catch (error) {
+    log.error({ path: filePath, error }, 'Failed to check/fix file permissions');
+  }
+}
+
+/**
+ * Enforce secure directory permissions (700) on a directory
+ */
+function enforceDirPermissions(dirPath: string): void {
+  try {
+    const stats = statSync(dirPath);
+    const currentMode = stats.mode & 0o777;
+
+    // Check if directory is world or group accessible
+    if (currentMode & 0o077) {
+      log.warn(
+        { path: dirPath, currentMode: currentMode.toString(8) },
+        'SECURITY: Data directory has insecure permissions, fixing to 700'
+      );
+      chmodSync(dirPath, SECURE_DIR_MODE);
+      log.info({ path: dirPath }, 'Fixed directory permissions to 700');
+    }
+  } catch (error) {
+    log.error({ path: dirPath, error }, 'Failed to check/fix directory permissions');
+  }
+}
+
+/**
+ * Secure all database files in the data directory
+ * Called on startup to ensure WAL and SHM files are also protected
+ */
+export function secureAllDatabaseFiles(): void {
+  if (!existsSync(DB_DIR)) return;
+
+  try {
+    const files = readdirSync(DB_DIR);
+    for (const file of files) {
+      const filePath = join(DB_DIR, file);
+      const stats = statSync(filePath);
+
+      if (stats.isFile()) {
+        enforceFilePermissions(filePath);
+      }
+    }
+    log.info({ dir: DB_DIR }, 'Verified secure permissions on all database files');
+  } catch (error) {
+    log.error({ dir: DB_DIR, error }, 'Failed to secure database files');
+  }
 }
 
 /**
