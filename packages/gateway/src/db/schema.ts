@@ -1024,3 +1024,47 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type MessageAttachment = typeof messageAttachments.$inferSelect;
 export type NewMessageAttachment = typeof messageAttachments.$inferInsert;
+
+// ============================================================================
+// FILE STORAGE TABLES
+// ============================================================================
+
+/**
+ * Uploaded files - File metadata storage
+ */
+export const files = sqliteTable(
+  'files',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    originalName: text('original_name').notNull(),
+    size: integer('size').notNull(),
+    mimeType: text('mime_type').notNull(),
+    category: text('category').notNull(), // 'image' | 'document' | 'code'
+    storagePath: text('storage_path').notNull(),
+    url: text('url'),
+    thumbnailUrl: text('thumbnail_url'),
+    checksum: text('checksum'), // SHA-256 hash for deduplication
+    metadata: text('metadata').default('{}'),
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_files_user_id').on(table.userId),
+    checksumIdx: index('idx_files_checksum').on(table.checksum),
+    createdAtIdx: index('idx_files_created_at').on(table.createdAt),
+  })
+);
+
+export const filesRelations = relations(files, ({ one }) => ({
+  user: one(users, {
+    fields: [files.userId],
+    references: [users.id],
+  }),
+}));
+
+// File types
+export type FileRecord = typeof files.$inferSelect;
+export type NewFileRecord = typeof files.$inferInsert;

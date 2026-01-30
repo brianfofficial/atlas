@@ -18,6 +18,7 @@ import { conversations, messages, messageAttachments } from '../../db/schema.js'
 import { NotFoundError, ValidationError, UnauthorizedError } from '../middleware/error-handler.js';
 import { getModelRouter } from '../../models/router.js';
 import { getEventBroadcaster } from '../../events/event-broadcaster.js';
+import { getFileInfo } from './files.js';
 
 const chat = new Hono<ServerEnv>();
 
@@ -329,11 +330,15 @@ chat.post('/conversations/:id/messages', zValidator('json', sendMessageSchema), 
   // Add attachments if any
   if (attachments && attachments.length > 0) {
     for (const fileId of attachments) {
+      // Fetch actual file info from storage
+      const fileInfo = await getFileInfo(fileId);
       await db.insert(messageAttachments).values({
         id: generateId(),
         messageId: userMessageId,
         fileId,
-        fileName: fileId, // TODO: Fetch actual file name from file storage
+        fileName: fileInfo?.name ?? fileId,
+        fileSize: fileInfo?.size,
+        fileType: fileInfo?.type,
         createdAt: timestamp,
       });
     }

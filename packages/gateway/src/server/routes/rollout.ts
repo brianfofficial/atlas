@@ -15,6 +15,7 @@ import { getTrustMonitor } from '../../rollout/trust-monitor.js';
 import { getRolloutManager } from '../../rollout/rollout-manager.js';
 import { getDailyReviewService } from '../../rollout/daily-review.js';
 import { ValidationError, ForbiddenError } from '../middleware/error-handler.js';
+import { requireAdmin } from '../middleware/auth.js';
 import type {
   TrustStatusResponse,
   UserReportInput,
@@ -279,8 +280,8 @@ rollout.post('/freeze', zValidator('json', freezeSchema), async (c) => {
     throw new ValidationError('User ID required');
   }
 
-  // TODO: Add admin check
-  // For now, any authenticated user can freeze (trust preservation > access control)
+  // Admin check required for manual freeze
+  requireAdmin(userId);
 
   const { reason } = c.req.valid('json');
   const rolloutManager = getRolloutManager();
@@ -303,7 +304,8 @@ rollout.post('/unfreeze', zValidator('json', unfreezeSchema), async (c) => {
     throw new ValidationError('User ID required');
   }
 
-  // TODO: Add admin check
+  // Admin check required for unfreeze
+  requireAdmin(userId);
 
   const { reason } = c.req.valid('json');
   const rolloutManager = getRolloutManager();
@@ -318,13 +320,16 @@ rollout.post('/unfreeze', zValidator('json', unfreezeSchema), async (c) => {
 
 /**
  * POST /api/rollout/briefings/disable
- * Disable briefings (preserves data)
+ * Disable briefings (preserves data) - admin only
  */
 rollout.post('/briefings/disable', zValidator('json', disableBriefingsSchema), async (c) => {
   const userId = c.get('userId');
   if (!userId) {
     throw new ValidationError('User ID required');
   }
+
+  // Admin check required for disabling briefings
+  requireAdmin(userId);
 
   const { reason } = c.req.valid('json');
   const rolloutManager = getRolloutManager();
@@ -339,13 +344,16 @@ rollout.post('/briefings/disable', zValidator('json', disableBriefingsSchema), a
 
 /**
  * POST /api/rollout/briefings/enable
- * Re-enable briefings
+ * Re-enable briefings - admin only
  */
 rollout.post('/briefings/enable', zValidator('json', enableBriefingsSchema), async (c) => {
   const userId = c.get('userId');
   if (!userId) {
     throw new ValidationError('User ID required');
   }
+
+  // Admin check required for enabling briefings
+  requireAdmin(userId);
 
   const { reason } = c.req.valid('json');
   const rolloutManager = getRolloutManager();
@@ -405,7 +413,8 @@ rollout.post('/advance-phase', async (c) => {
     throw new ValidationError('User ID required');
   }
 
-  // TODO: Add admin check
+  // Admin check required for phase advancement
+  requireAdmin(userId);
 
   const rolloutManager = getRolloutManager();
   const result = await rolloutManager.tryAdvancePhase();
@@ -426,6 +435,9 @@ rollout.post('/eligibility/assess', zValidator('json', eligibilitySchema), async
   if (!assessedBy) {
     throw new ValidationError('User ID required');
   }
+
+  // Admin check required for assessing eligibility
+  requireAdmin(assessedBy);
 
   const { userId, traits, antiTargets } = c.req.valid('json');
   const rolloutManager = getRolloutManager();

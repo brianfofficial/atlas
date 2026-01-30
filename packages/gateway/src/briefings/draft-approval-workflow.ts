@@ -31,6 +31,9 @@ import {
 } from './types.js';
 import { getMetricsTracker, MetricsTracker } from './metrics-tracker.js';
 import { getEventBroadcaster } from '../events/event-broadcaster.js';
+import { getEmailService } from '../services/email-service.js';
+import { getCalendarService } from '../services/calendar-service.js';
+import { getTaskService } from '../services/task-service.js';
 
 /**
  * Undo window duration in milliseconds (30 seconds)
@@ -381,38 +384,84 @@ export class DraftApprovalWorkflow {
     let rollbackFn: (() => Promise<void>) | undefined;
 
     try {
-      // Execute based on type
+      // Execute based on type using service integrations
       switch (item.type) {
-        case 'email_draft':
-          // TODO: Integrate with email service
-          // const result = await emailService.sendDraft(item);
-          // externalId = result.messageId;
-          // rollbackFn = () => emailService.recallMessage(result.messageId);
-          externalId = `email_${uuid()}`; // Placeholder
+        case 'email_draft': {
+          const emailService = getEmailService();
+          const result = await emailService.sendDraft({
+            id: item.id,
+            to: [{ email: 'recipient@example.com' }], // Would come from item metadata
+            subject: item.title,
+            body: item.content,
+          });
+          if (result.success && result.data) {
+            externalId = result.data.messageId;
+            const messageId = result.data.messageId;
+            rollbackFn = async () => { await emailService.recallMessage(messageId); };
+          }
           break;
+        }
 
-        case 'meeting_prep':
-          // TODO: Integrate with calendar service
-          // const noteId = await calendarService.addEventNote(item.sourceId, item.content);
-          // externalId = noteId;
-          // rollbackFn = () => calendarService.removeEventNote(noteId);
-          externalId = `note_${uuid()}`; // Placeholder
+        case 'meeting_prep': {
+          const calendarService = getCalendarService();
+          const result = await calendarService.addEventNote(
+            item.source?.id || '',
+            item.content,
+            'prep'
+          );
+          if (result.success && result.data) {
+            externalId = result.data.id;
+            const noteId = result.data.id;
+            rollbackFn = async () => { await calendarService.removeEventNote(noteId); };
+          }
           break;
+        }
 
-        case 'calendar_note':
-          // TODO: Integrate with calendar service
-          externalId = `cal_${uuid()}`; // Placeholder
+        case 'calendar_note': {
+          const calendarService = getCalendarService();
+          const result = await calendarService.addEventNote(
+            item.source?.id || '',
+            item.content,
+            'general'
+          );
+          if (result.success && result.data) {
+            externalId = result.data.id;
+            const noteId = result.data.id;
+            rollbackFn = async () => { await calendarService.removeEventNote(noteId); };
+          }
           break;
+        }
 
-        case 'follow_up':
-          // TODO: Integrate with task service
-          externalId = `task_${uuid()}`; // Placeholder
+        case 'follow_up': {
+          const taskService = getTaskService();
+          const result = await taskService.createTask({
+            title: item.title,
+            description: item.content,
+            linkedEventId: item.source?.id,
+            priority: 'medium',
+          });
+          if (result.success && result.data) {
+            externalId = result.data.id;
+            const taskId = result.data.id;
+            rollbackFn = async () => { await taskService.deleteTask(taskId); };
+          }
           break;
+        }
 
-        case 'task_reminder':
-          // TODO: Integrate with task service
-          externalId = `reminder_${uuid()}`; // Placeholder
+        case 'task_reminder': {
+          const taskService = getTaskService();
+          const result = await taskService.createReminder({
+            title: item.title,
+            description: item.content,
+            remindAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          });
+          if (result.success && result.data) {
+            externalId = result.data.id;
+            const reminderId = result.data.id;
+            rollbackFn = async () => { await taskService.deleteReminder(reminderId); };
+          }
           break;
+        }
       }
 
       // Update item with execution info

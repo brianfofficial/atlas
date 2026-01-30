@@ -35,7 +35,23 @@ import {
   TRUST_SIGNAL_THRESHOLDS,
 } from './types.js';
 import { getEventBroadcaster } from '../events/event-broadcaster.js';
-import { getAuditService } from '../audit/audit-service.js';
+import { getAuditService, type AuditEventType } from '../audit/audit-service.js';
+
+/**
+ * Map ImmediateHaltTrigger to the appropriate audit event type
+ */
+function mapTriggerToAuditType(trigger: ImmediateHaltTrigger): AuditEventType {
+  const mapping: Record<ImmediateHaltTrigger, AuditEventType> = {
+    user_data_mismatch: 'trust:stale_data',
+    user_error_confusion: 'trust:silent_failure',
+    integration_reconnect_loop: 'trust:behavior_change',
+    retry_button_spam: 'trust:behavior_change',
+    user_trust_question: 'trust:user_report',
+    memory_without_attribution: 'trust:memory_attribution',
+    cascade_prevention_failure: 'trust:cascade_failure',
+  };
+  return mapping[trigger] ?? 'trust:user_report';
+}
 
 /**
  * Trust Monitor configuration
@@ -517,10 +533,10 @@ export class TrustMonitor {
       });
     }
 
-    // Audit log
+    // Audit log with proper trust-specific event type
     const auditService = getAuditService();
     await auditService.log({
-      type: 'security:alert' as any, // TODO: Add trust-specific audit types
+      type: mapTriggerToAuditType(trigger),
       severity: severity === 'critical' ? 'critical' : 'warning',
       message: `Trust regression: ${trigger} - ${description}`,
       userId,

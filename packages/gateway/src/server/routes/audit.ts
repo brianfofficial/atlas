@@ -17,27 +17,49 @@ const audit = new Hono<ServerEnv>();
 
 // Event types and severities
 const eventTypes: AuditEventType[] = [
+  // Authentication events
   'auth:login',
   'auth:logout',
   'auth:mfa_verify',
   'auth:failed_login',
+  // Approval workflow events
   'approval:created',
   'approval:approved',
   'approval:denied',
   'approval:expired',
   'approval:auto_approved',
+  // Credential events
   'credential:created',
   'credential:accessed',
   'credential:rotated',
   'credential:deleted',
+  // Security events
   'sandbox:execution',
   'sandbox:blocked',
   'security:injection_blocked',
   'security:exfiltration_blocked',
   'network:request_blocked',
+  // Session events
   'session:created',
   'session:invalidated',
   'config:changed',
+  // Trust regression events (V1 Rollout Plan)
+  'trust:stale_data',
+  'trust:silent_failure',
+  'trust:behavior_change',
+  'trust:user_report',
+  'trust:memory_attribution',
+  'trust:cascade_failure',
+  'trust:signal_stop',
+  // Rollout events
+  'rollout:freeze',
+  'rollout:unfreeze',
+  'rollout:phase_change',
+  'rollout:briefings_disabled',
+  'rollout:briefings_enabled',
+  'rollout:eligibility_assessed',
+  'rollout:clean_day',
+  'rollout:clean_days_reset',
 ];
 
 const severities: AuditSeverity[] = ['info', 'warning', 'error', 'critical'];
