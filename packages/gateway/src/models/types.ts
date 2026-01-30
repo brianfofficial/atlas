@@ -66,6 +66,20 @@ export interface ModelResponse {
 }
 
 /**
+ * Streaming chunk from a model provider
+ */
+export interface StreamChunk {
+  delta: string // Incremental content
+  done: boolean
+  model?: string
+  provider?: ModelProvider
+  // Final chunk includes usage info
+  usage?: TokenUsage
+  finishReason?: 'stop' | 'max_tokens' | 'error'
+  error?: string
+}
+
+/**
  * Token usage for cost tracking
  */
 export interface TokenUsage {
@@ -172,6 +186,12 @@ export interface ModelProviderInterface {
    * Send a request to the model
    */
   complete(request: ModelRequest, model: string): Promise<ModelResponse>
+
+  /**
+   * Send a streaming request to the model
+   * Returns an async generator that yields chunks
+   */
+  completeStream?(request: ModelRequest, model: string): AsyncGenerator<StreamChunk, void, unknown>
 }
 
 /**

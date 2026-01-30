@@ -23,6 +23,7 @@ import {
   briefingHistory,
   userEngagement,
   users,
+  sectionFailures,
 } from '../db/schema.js';
 import { eq, and, gte, lte, desc, sql, count, ne } from 'drizzle-orm';
 import {
@@ -409,8 +410,7 @@ export class DailyReviewService {
       );
 
     // Q4: Is there any pattern in which sections fail?
-    // This would require more detailed analysis of briefing content
-    const failurePattern: string | null = null; // TODO: Implement section failure analysis
+    const failurePattern = await this.analyzeSectionFailurePatterns();
 
     // Q5: Did I notice anything in my own briefing that felt off?
     // This is user-provided, not auto-detected
@@ -423,6 +423,186 @@ export class DailyReviewService {
       anyFailurePattern: failurePattern,
       builderFeelWrong,
     };
+  }
+
+  // ============================================================================
+  // SECTION FAILURE ANALYSIS
+  // ============================================================================
+
+  /**
+   * Analyze section failure patterns to identify recurring issues
+   * Returns a human-readable description of any patterns found
+   */
+  async analyzeSectionFailurePatterns(): Promise<string | null> {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const patterns: string[] = [];
+
+    // Pattern 1: Which section types fail most often?
+    const sectionTypeFailures = await this.db
+      .select({
+        sectionType: sectionFailures.sectionType,
+        count: count(),
+      })
+      .from(sectionFailures)
+      .where(gte(sectionFailures.occurredAt, sevenDaysAgo))
+      .groupBy(sectionFailures.sectionType)
+      .orderBy(desc(count()));
+
+    if (sectionTypeFailures.length > 0 && sectionTypeFailures[0]) {
+      const topFailure = sectionTypeFailures[0];
+      const total = sectionTypeFailures.reduce((sum, s) => sum + s.count, 0);
+      const percentage = total > 0 ? Math.round((topFailure.count / total) * 100) : 0;
+
+      if (percentage > 50) {
+        patterns.push(`${topFailure.sectionType} section accounts for ${percentage}% of failures`);
+      }
+    }
+
+    // Pattern 2: Failures concentrated at specific times?
+    const hourlyFailures = await this.db
+      .select({
+        hourOfDay: sectionFailures.hourOfDay,
+        count: count(),
+      })
+      .from(sectionFailures)
+      .where(gte(sectionFailures.occurredAt, sevenDaysAgo))
+      .groupBy(sectionFailures.hourOfDay)
+      .orderBy(desc(count()));
+
+    if (hourlyFailures.length > 0) {
+      const totalHourlyFailures = hourlyFailures.reduce((sum, h) => sum + h.count, 0);
+      const peakHour = hourlyFailures[0];
+
+      if (peakHour && totalHourlyFailures > 5) {
+        const peakPercentage = Math.round((peakHour.count / totalHourlyFailures) * 100);
+        if (peakPercentage > 40) {
+          patterns.push(`${peakPercentage}% of failures occur around ${peakHour.hourOfDay}:00`);
+        }
+      }
+    }
+
+    // Pattern 3: Failure type distribution (auth vs timeout vs rate limit)
+    const failureTypeDistribution = await this.db
+      .select({
+        failureType: sectionFailures.failureType,
+        count: count(),
+      })
+      .from(sectionFailures)
+      .where(gte(sectionFailures.occurredAt, sevenDaysAgo))
+      .groupBy(sectionFailures.failureType)
+      .orderBy(desc(count()));
+
+    if (failureTypeDistribution.length > 0 && failureTypeDistribution[0]) {
+      const topFailureType = failureTypeDistribution[0];
+      const total = failureTypeDistribution.reduce((sum, f) => sum + f.count, 0);
+      const percentage = total > 0 ? Math.round((topFailureType.count / total) * 100) : 0;
+
+      if (percentage > 60) {
+        const readableType = this.formatFailureType(topFailureType.failureType);
+        patterns.push(`${readableType} is the dominant failure mode (${percentage}%)`);
+      }
+    }
+
+    // Pattern 4: Same user experiencing repeated failures
+    const userFailureCounts = await this.db
+      .select({
+        userId: sectionFailures.userId,
+        count: count(),
+      })
+      .from(sectionFailures)
+      .where(gte(sectionFailures.occurredAt, sevenDaysAgo))
+      .groupBy(sectionFailures.userId)
+      .orderBy(desc(count()));
+
+    const highFailureUsers = userFailureCounts.filter((u) => u.count > 5);
+    if (highFailureUsers.length > 0) {
+      patterns.push(`${highFailureUsers.length} user(s) experiencing repeated failures`);
+    }
+
+    // Pattern 5: Day of week patterns (weekday vs weekend)
+    const dayOfWeekFailures = await this.db
+      .select({
+        dayOfWeek: sectionFailures.dayOfWeek,
+        count: count(),
+      })
+      .from(sectionFailures)
+      .where(gte(sectionFailures.occurredAt, sevenDaysAgo))
+      .groupBy(sectionFailures.dayOfWeek);
+
+    const weekdayTotal = dayOfWeekFailures
+      .filter((d) => d.dayOfWeek >= 1 && d.dayOfWeek <= 5)
+      .reduce((sum, d) => sum + d.count, 0);
+    const weekendTotal = dayOfWeekFailures
+      .filter((d) => d.dayOfWeek === 0 || d.dayOfWeek === 6)
+      .reduce((sum, d) => sum + d.count, 0);
+
+    if (weekdayTotal + weekendTotal > 10) {
+      const weekdayAvg = weekdayTotal / 5;
+      const weekendAvg = weekendTotal / 2;
+
+      if (weekendAvg > weekdayAvg * 2) {
+        patterns.push('Failures significantly higher on weekends');
+      } else if (weekdayAvg > weekendAvg * 2) {
+        patterns.push('Failures significantly higher on weekdays');
+      }
+    }
+
+    if (patterns.length === 0) {
+      return null;
+    }
+
+    return patterns.join('; ');
+  }
+
+  /**
+   * Record a section failure for pattern analysis
+   */
+  async recordSectionFailure(
+    userId: string,
+    sectionType: string,
+    failureType: string,
+    options?: {
+      briefingId?: string;
+      integrationId?: string;
+      errorMessage?: string;
+      errorCode?: string;
+      retryCount?: number;
+      wasRecovered?: boolean;
+    }
+  ): Promise<void> {
+    const now = new Date();
+    const id = `sf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    await this.db.insert(sectionFailures).values({
+      id,
+      userId,
+      briefingId: options?.briefingId,
+      sectionType,
+      integrationId: options?.integrationId,
+      failureType,
+      errorMessage: options?.errorMessage,
+      errorCode: options?.errorCode,
+      retryCount: options?.retryCount ?? 0,
+      wasRecovered: options?.wasRecovered ?? false,
+      occurredAt: now.toISOString(),
+      dayOfWeek: now.getDay(),
+      hourOfDay: now.getHours(),
+    });
+  }
+
+  /**
+   * Format failure type for human readability
+   */
+  private formatFailureType(type: string): string {
+    const typeMap: Record<string, string> = {
+      timeout: 'Timeouts',
+      auth: 'Authentication errors',
+      rate_limit: 'Rate limiting',
+      parse_error: 'Data parsing errors',
+      empty_response: 'Empty responses',
+      unknown: 'Unknown errors',
+    };
+    return typeMap[type] || type;
   }
 
   // ============================================================================

@@ -19,6 +19,7 @@ import {
   TaskComplexity,
   RoutingConfig,
   ProviderStatus,
+  StreamChunk,
   DEFAULT_ROUTING_CONFIG,
 } from './types.js'
 import { OllamaProvider, ollamaProvider } from './providers/ollama.js'
@@ -117,6 +118,88 @@ export class ModelRouter {
         estimatedCost: 0,
       },
       latencyMs: 0,
+      finishReason: 'error',
+      error: 'All models failed or unavailable',
+    }
+  }
+
+  /**
+   * Route a streaming request to the most appropriate model
+   * Returns an async generator that yields chunks
+   */
+  async *routeStream(request: ModelRequest, preferredComplexity?: TaskComplexity): AsyncGenerator<StreamChunk, void, unknown> {
+    // Detect or use provided complexity
+    const complexity = preferredComplexity ?? this.detectComplexity(request.prompt)
+
+    // Get ordered list of models to try
+    const modelOrder = this.getModelOrder(complexity)
+
+    // Try each model in order until one succeeds
+    for (const modelSpec of modelOrder) {
+      const [providerName, modelId] = this.parseModelSpec(modelSpec)
+      const provider = this.providers.get(providerName as ModelProvider)
+
+      if (!provider) {
+        continue
+      }
+
+      // Check provider health
+      const status = await this.getProviderStatus(providerName as ModelProvider)
+      if (!status.isAvailable) {
+        console.log(`Provider ${providerName} unavailable, trying next...`)
+        continue
+      }
+
+      // Check if model is available
+      if (!status.availableModels.includes(modelId)) {
+        console.log(`Model ${modelId} not available on ${providerName}, trying next...`)
+        continue
+      }
+
+      // Check if provider supports streaming
+      if (!provider.completeStream) {
+        console.log(`Provider ${providerName} does not support streaming, falling back to non-streaming...`)
+        // Fall back to non-streaming response
+        const response = await provider.complete(request, modelId)
+        yield {
+          delta: response.content,
+          done: true,
+          model: response.model,
+          provider: response.provider,
+          usage: response.usage,
+          finishReason: response.finishReason,
+          error: response.error,
+        }
+        return
+      }
+
+      // Use streaming
+      let hasError = false
+      for await (const chunk of provider.completeStream(request, modelId)) {
+        yield chunk
+        if (chunk.finishReason === 'error') {
+          hasError = true
+        }
+        if (chunk.done && !hasError) {
+          return // Success, exit
+        }
+      }
+
+      // If we had an error, try next model
+      if (hasError) {
+        console.log(`Model ${modelSpec} streaming failed, trying next...`)
+        continue
+      }
+
+      return // Success
+    }
+
+    // All models failed
+    yield {
+      delta: '',
+      done: true,
+      model: 'none',
+      provider: 'ollama',
       finishReason: 'error',
       error: 'All models failed or unavailable',
     }

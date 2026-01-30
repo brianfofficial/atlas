@@ -15,6 +15,7 @@ import {
   ModelResponse,
   ProviderStatus,
   ModelCapabilities,
+  StreamChunk,
 } from '../types.js'
 
 /**
@@ -325,6 +326,149 @@ export class OllamaProvider implements ModelProviderInterface {
           estimatedCost: 0,
         },
         latencyMs: Date.now() - startTime,
+        finishReason: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Send a streaming completion request to Ollama
+   */
+  async *completeStream(request: ModelRequest, model: string): AsyncGenerator<StreamChunk, void, unknown> {
+    const startTime = Date.now()
+
+    try {
+      // Build the prompt with system prompt if provided
+      let fullPrompt = request.prompt
+      if (request.systemPrompt) {
+        fullPrompt = `${request.systemPrompt}\n\n${request.prompt}`
+      }
+
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          prompt: fullPrompt,
+          stream: true, // Enable streaming
+          options: {
+            num_predict: request.maxTokens ?? 2048,
+            temperature: request.temperature ?? 0.7,
+            stop: request.stopSequences,
+          },
+        }),
+        signal: AbortSignal.timeout(120000), // 2 minute timeout for streaming
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        yield {
+          delta: '',
+          done: true,
+          model,
+          provider: 'ollama',
+          finishReason: 'error',
+          error: `Ollama error: ${response.status} - ${errorText}`,
+        }
+        return
+      }
+
+      if (!response.body) {
+        yield {
+          delta: '',
+          done: true,
+          model,
+          provider: 'ollama',
+          finishReason: 'error',
+          error: 'No response body',
+        }
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let totalContent = ''
+      let promptTokens = 0
+      let outputTokens = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process complete JSON lines
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+
+          try {
+            const chunk = JSON.parse(line) as OllamaGenerateResponse
+
+            if (chunk.response) {
+              totalContent += chunk.response
+              yield {
+                delta: chunk.response,
+                done: false,
+                model,
+                provider: 'ollama',
+              }
+            }
+
+            // Ollama sends token counts in the final response
+            if (chunk.done) {
+              promptTokens = chunk.prompt_eval_count ?? Math.ceil(fullPrompt.length / 4)
+              outputTokens = chunk.eval_count ?? Math.ceil(totalContent.length / 4)
+
+              yield {
+                delta: '',
+                done: true,
+                model,
+                provider: 'ollama',
+                usage: {
+                  inputTokens: promptTokens,
+                  outputTokens: outputTokens,
+                  totalTokens: promptTokens + outputTokens,
+                  estimatedCost: 0, // Local = free
+                },
+                finishReason: 'stop',
+              }
+              return
+            }
+          } catch {
+            // Skip malformed JSON lines
+            continue
+          }
+        }
+      }
+
+      // Handle case where stream ends without done:true
+      yield {
+        delta: '',
+        done: true,
+        model,
+        provider: 'ollama',
+        usage: {
+          inputTokens: Math.ceil(fullPrompt.length / 4),
+          outputTokens: Math.ceil(totalContent.length / 4),
+          totalTokens: Math.ceil((fullPrompt.length + totalContent.length) / 4),
+          estimatedCost: 0,
+        },
+        finishReason: 'stop',
+      }
+    } catch (error) {
+      yield {
+        delta: '',
+        done: true,
+        model,
+        provider: 'ollama',
         finishReason: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       }

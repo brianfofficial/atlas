@@ -1068,3 +1068,60 @@ export const filesRelations = relations(files, ({ one }) => ({
 // File types
 export type FileRecord = typeof files.$inferSelect;
 export type NewFileRecord = typeof files.$inferInsert;
+
+// ============================================================================
+// SECTION FAILURE TRACKING
+// ============================================================================
+
+/**
+ * Section failures - Track failures by briefing section type for pattern analysis
+ * Enables answering "Is there any pattern in which sections fail?"
+ */
+export const sectionFailures = sqliteTable(
+  'section_failures',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    briefingId: text('briefing_id'),
+
+    // Section identification
+    sectionType: text('section_type').notNull(), // 'calendar' | 'email' | 'tasks' | 'health' | 'weather' | 'summary'
+    integrationId: text('integration_id'), // Which integration failed
+
+    // Failure details
+    failureType: text('failure_type').notNull(), // 'timeout' | 'auth' | 'rate_limit' | 'parse_error' | 'empty_response' | 'unknown'
+    errorMessage: text('error_message'),
+    errorCode: text('error_code'),
+
+    // Context
+    retryCount: integer('retry_count').notNull().default(0),
+    wasRecovered: integer('was_recovered', { mode: 'boolean' }).default(false),
+
+    // Timing
+    occurredAt: text('occurred_at').notNull(),
+    dayOfWeek: integer('day_of_week').notNull(), // 0-6 (Sunday-Saturday)
+    hourOfDay: integer('hour_of_day').notNull(), // 0-23
+
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_section_failures_user_id').on(table.userId),
+    sectionTypeIdx: index('idx_section_failures_section_type').on(table.sectionType),
+    failureTypeIdx: index('idx_section_failures_failure_type').on(table.failureType),
+    occurredAtIdx: index('idx_section_failures_occurred_at').on(table.occurredAt),
+    dayHourIdx: index('idx_section_failures_day_hour').on(table.dayOfWeek, table.hourOfDay),
+  })
+);
+
+export const sectionFailuresRelations = relations(sectionFailures, ({ one }) => ({
+  user: one(users, {
+    fields: [sectionFailures.userId],
+    references: [users.id],
+  }),
+}));
+
+// Section failure types
+export type SectionFailure = typeof sectionFailures.$inferSelect;
+export type NewSectionFailure = typeof sectionFailures.$inferInsert;

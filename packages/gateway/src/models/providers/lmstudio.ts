@@ -15,6 +15,7 @@ import {
   ModelResponse,
   ProviderStatus,
   ModelCapabilities,
+  StreamChunk,
 } from '../types.js'
 
 /**
@@ -63,6 +64,21 @@ interface LMStudioChatResponse {
     completion_tokens: number
     total_tokens: number
   }
+}
+
+interface LMStudioStreamChunk {
+  id: string
+  object: string
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    delta: {
+      role?: string
+      content?: string
+    }
+    finish_reason: string | null
+  }>
 }
 
 /**
@@ -224,6 +240,145 @@ export class LMStudioProvider implements ModelProviderInterface {
           estimatedCost: 0,
         },
         latencyMs: Date.now() - startTime,
+        finishReason: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Send a streaming completion request to LM Studio
+   */
+  async *completeStream(request: ModelRequest, model: string): AsyncGenerator<StreamChunk, void, unknown> {
+    try {
+      const messages: Array<{ role: string; content: string }> = []
+
+      if (request.systemPrompt) {
+        messages.push({ role: 'system', content: request.systemPrompt })
+      }
+      messages.push({ role: 'user', content: request.prompt })
+
+      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: request.maxTokens ?? 2048,
+          temperature: request.temperature ?? 0.7,
+          stop: request.stopSequences,
+          stream: true,
+        }),
+        signal: AbortSignal.timeout(120000), // 2 minute timeout for streaming
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        yield {
+          delta: '',
+          done: true,
+          model,
+          provider: 'lmstudio',
+          finishReason: 'error',
+          error: `LM Studio error: ${response.status} - ${errorText}`,
+        }
+        return
+      }
+
+      if (!response.body) {
+        yield {
+          delta: '',
+          done: true,
+          model,
+          provider: 'lmstudio',
+          finishReason: 'error',
+          error: 'No response body',
+        }
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let totalContent = ''
+      const inputLength = messages.reduce((sum, m) => sum + m.content.length, 0)
+
+      while (true) {
+        const { done, value } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process SSE lines (data: {...})
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || trimmed === 'data: [DONE]') continue
+          if (!trimmed.startsWith('data: ')) continue
+
+          try {
+            const jsonStr = trimmed.slice(6) // Remove "data: " prefix
+            const chunk = JSON.parse(jsonStr) as LMStudioStreamChunk
+
+            const choice = chunk.choices[0]
+            if (choice?.delta?.content) {
+              totalContent += choice.delta.content
+              yield {
+                delta: choice.delta.content,
+                done: false,
+                model,
+                provider: 'lmstudio',
+              }
+            }
+
+            if (choice?.finish_reason) {
+              yield {
+                delta: '',
+                done: true,
+                model,
+                provider: 'lmstudio',
+                usage: {
+                  inputTokens: Math.ceil(inputLength / 4),
+                  outputTokens: Math.ceil(totalContent.length / 4),
+                  totalTokens: Math.ceil((inputLength + totalContent.length) / 4),
+                  estimatedCost: 0,
+                },
+                finishReason: choice.finish_reason === 'stop' ? 'stop' : 'max_tokens',
+              }
+              return
+            }
+          } catch {
+            // Skip malformed JSON
+            continue
+          }
+        }
+      }
+
+      // Handle case where stream ends without finish_reason
+      yield {
+        delta: '',
+        done: true,
+        model,
+        provider: 'lmstudio',
+        usage: {
+          inputTokens: Math.ceil(inputLength / 4),
+          outputTokens: Math.ceil(totalContent.length / 4),
+          totalTokens: Math.ceil((inputLength + totalContent.length) / 4),
+          estimatedCost: 0,
+        },
+        finishReason: 'stop',
+      }
+    } catch (error) {
+      yield {
+        delta: '',
+        done: true,
+        model,
+        provider: 'lmstudio',
         finishReason: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       }

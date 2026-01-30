@@ -369,38 +369,49 @@ chat.post('/conversations/:id/messages', zValidator('json', sendMessageSchema), 
     content: m.content,
   }));
 
-  // If streaming is requested, use SSE
+  // If streaming is requested, use SSE with true streaming
   if (stream) {
     return streamSSE(c, async (stream) => {
       const assistantMessageId = generateId();
       let fullContent = '';
       const startTime = Date.now();
+      let finalModel = '';
+      let finalProvider = '';
+      let finalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: 0 };
+      let finalFinishReason: 'stop' | 'max_tokens' | 'error' = 'stop';
+      let finalError: string | undefined;
 
       try {
-        // Use model router to get AI response
+        // Use model router with true streaming
         const router = getModelRouter();
-        const response = await router.route({
+
+        for await (const chunk of router.routeStream({
           prompt: content,
           systemPrompt: `You are Atlas, a helpful AI assistant. Be concise and helpful. Current conversation context has ${contextMessages.length} previous messages.`,
           maxTokens: 4096,
           temperature: 0.7,
-        });
+        })) {
+          // Send delta chunks to client
+          if (chunk.delta) {
+            fullContent += chunk.delta;
+            await stream.writeSSE({
+              data: JSON.stringify({ delta: chunk.delta }),
+              event: 'delta',
+            });
+          }
 
-        fullContent = response.content;
-
-        // For now, simulate streaming by chunking the response
-        // TODO: Implement true streaming with model providers
-        const words = fullContent.split(' ');
-        const chunkSize = 5;
-
-        for (let i = 0; i < words.length; i += chunkSize) {
-          const chunk = words.slice(i, i + chunkSize).join(' ') + (i + chunkSize < words.length ? ' ' : '');
-          await stream.writeSSE({
-            data: JSON.stringify({ delta: chunk }),
-            event: 'delta',
-          });
-          // Small delay to simulate streaming
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          // Capture final metadata from done chunk
+          if (chunk.done) {
+            finalModel = chunk.model || '';
+            finalProvider = chunk.provider || '';
+            if (chunk.usage) {
+              finalUsage = chunk.usage;
+            }
+            if (chunk.finishReason) {
+              finalFinishReason = chunk.finishReason;
+            }
+            finalError = chunk.error;
+          }
         }
 
         // Save assistant message
@@ -410,14 +421,14 @@ chat.post('/conversations/:id/messages', zValidator('json', sendMessageSchema), 
           conversationId,
           role: 'assistant',
           content: fullContent,
-          model: response.model,
-          provider: response.provider,
-          tokensInput: response.usage.inputTokens,
-          tokensOutput: response.usage.outputTokens,
+          model: finalModel,
+          provider: finalProvider,
+          tokensInput: finalUsage.inputTokens,
+          tokensOutput: finalUsage.outputTokens,
           durationMs,
-          estimatedCost: response.usage.estimatedCost,
-          finishReason: response.finishReason,
-          error: response.error,
+          estimatedCost: finalUsage.estimatedCost,
+          finishReason: finalFinishReason,
+          error: finalError,
           createdAt: now(),
         });
 
@@ -437,8 +448,8 @@ chat.post('/conversations/:id/messages', zValidator('json', sendMessageSchema), 
           data: JSON.stringify({
             done: true,
             id: assistantMessageId,
-            model: response.model,
-            tokensUsed: response.usage.totalTokens,
+            model: finalModel,
+            tokensUsed: finalUsage.totalTokens,
             duration: durationMs,
           }),
           event: 'done',
