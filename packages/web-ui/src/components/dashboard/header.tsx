@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import {
-  Bell,
   User,
   LogOut,
   Settings,
@@ -22,6 +21,11 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { MemoryPanel } from '@/components/memory/memory-panel'
+import {
+  NotificationCenter,
+  useNotifications,
+  createDemoNotifications,
+} from '@/components/notifications/notification-center'
 import { useAuthContext } from '@/components/auth/auth-provider'
 
 interface HeaderProps {
@@ -30,6 +34,14 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout, isLoggingOut } = useAuthContext()
+
+  // Initialize notifications with demo data (in production, this would come from API/WebSocket)
+  const {
+    notifications,
+    markRead,
+    markAllRead,
+    dismiss,
+  } = useNotifications({ initialNotifications: createDemoNotifications() })
 
   const userInitials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
@@ -64,70 +76,12 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           />
 
           {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-danger text-[10px] font-medium text-danger-foreground flex items-center justify-center">
-                  3
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="max-h-96 overflow-auto">
-                {[
-                  {
-                    title: 'New device paired',
-                    description: 'MacBook Pro was added to your account',
-                    time: '2 min ago',
-                    type: 'info',
-                  },
-                  {
-                    title: 'Failed login attempt',
-                    description: 'Blocked from unknown IP 192.168.1.100',
-                    time: '1 hour ago',
-                    type: 'warning',
-                  },
-                  {
-                    title: 'Credential rotation reminder',
-                    description: '3 credentials are older than 90 days',
-                    time: '1 day ago',
-                    type: 'warning',
-                  },
-                ].map((notification, i) => (
-                  <DropdownMenuItem
-                    key={i}
-                    className="flex flex-col items-start gap-1 p-3 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`status-dot ${
-                          notification.type === 'warning'
-                            ? 'status-dot-warning'
-                            : 'status-dot-success'
-                        }`}
-                      />
-                      <span className="font-medium text-sm">
-                        {notification.title}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {notification.description}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {notification.time}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="justify-center text-primary">
-                View all notifications
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationCenter
+            notifications={notifications}
+            onMarkRead={markRead}
+            onMarkAllRead={markAllRead}
+            onDismiss={dismiss}
+          />
 
           {/* User menu */}
           <DropdownMenu>

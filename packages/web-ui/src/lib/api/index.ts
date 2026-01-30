@@ -34,6 +34,9 @@ export * from './dashboard'
 // Chat
 export * from './chat'
 
+// Briefings
+export * from './briefings'
+
 // Files
 export * from './files'
 
