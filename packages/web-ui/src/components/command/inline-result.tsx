@@ -42,7 +42,7 @@ export interface InlineResultData {
   // GitHub specific
   prsAwaitingReview?: number
   myOpenPRs?: number
-  ciStatus?: 'passing' | 'failing' | 'pending'
+  ciStatus?: 'passing' | 'failing' | 'pending' | 'none'
   recentCommits?: number
   // Email specific
   unreadCount?: number
@@ -147,13 +147,15 @@ function GitHubResult({ data, className }: InlineResultProps) {
     passing: 'text-success',
     failing: 'text-danger',
     pending: 'text-warning',
+    none: 'text-muted-foreground',
   }
 
   const StatusIcon = {
     passing: CheckCircle,
     failing: XCircle,
     pending: AlertCircle,
-  }[data.ciStatus || 'pending']
+    none: AlertCircle,
+  }[data.ciStatus || 'none']
 
   return (
     <div className={cn('space-y-3', className)}>

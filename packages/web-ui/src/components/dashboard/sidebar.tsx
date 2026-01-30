@@ -36,7 +36,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     title: 'Dashboard',
-    href: '/',
+    href: '/overview',
     icon: LayoutDashboard,
   },
   {
@@ -104,7 +104,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b px-4">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/overview" className="flex items-center gap-3">
             <div className="p-1.5 rounded-lg bg-primary/10">
               <Shield className="h-5 w-5 text-primary" />
             </div>
@@ -131,7 +131,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {navItems.map((item) => {
             const isActive =
               pathname === item.href ||
-              (item.href !== '/' && pathname.startsWith(item.href))
+              (item.href !== '/overview' && pathname.startsWith(item.href))
 
             const linkContent = (
               <Link
