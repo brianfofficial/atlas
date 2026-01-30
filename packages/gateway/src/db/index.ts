@@ -119,7 +119,7 @@ async function runMigrations(): Promise<void> {
 
   log.info('Running database migrations...');
 
-  // Check if tables exist by trying to query them
+  // Check if core tables exist
   const tableCheck = sqlite.prepare(`
     SELECT name FROM sqlite_master
     WHERE type='table' AND name='users'
@@ -132,7 +132,199 @@ async function runMigrations(): Promise<void> {
     createInitialSchema();
   }
 
+  // Always run incremental migrations to add any missing tables
+  runIncrementalMigrations();
+
   log.info('Database migrations complete');
+}
+
+/**
+ * Run incremental migrations to add tables that may be missing
+ * This handles the case where the database was created before new tables were added
+ */
+function runIncrementalMigrations(): void {
+  if (!sqlite) {
+    throw new Error('SQLite connection not available');
+  }
+
+  // List of required tables and their CREATE statements
+  const requiredTables: { name: string; createSql: string }[] = [
+    {
+      name: 'rollout_state',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS rollout_state (
+          id TEXT PRIMARY KEY DEFAULT 'singleton',
+          current_phase INTEGER NOT NULL DEFAULT 0,
+          consecutive_clean_days INTEGER NOT NULL DEFAULT 0,
+          last_clean_day_check TEXT NOT NULL DEFAULT (datetime('now')),
+          total_users INTEGER NOT NULL DEFAULT 0,
+          active_users INTEGER NOT NULL DEFAULT 0,
+          frozen INTEGER NOT NULL DEFAULT 0,
+          frozen_at TEXT,
+          frozen_reason TEXT,
+          frozen_by TEXT,
+          briefings_disabled INTEGER NOT NULL DEFAULT 0,
+          briefings_disabled_at TEXT,
+          briefings_disabled_reason TEXT,
+          last_phase_change_from INTEGER,
+          last_phase_change_to INTEGER,
+          last_phase_change_at TEXT,
+          last_phase_change_reason TEXT,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `,
+    },
+    {
+      name: 'trust_signals',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS trust_signals (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          value REAL NOT NULL,
+          level TEXT NOT NULL,
+          numerator INTEGER,
+          denominator INTEGER,
+          period_start TEXT NOT NULL,
+          period_end TEXT NOT NULL,
+          metadata TEXT DEFAULT '{}',
+          measured_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_trust_signals_type ON trust_signals(type);
+        CREATE INDEX IF NOT EXISTS idx_trust_signals_level ON trust_signals(level);
+        CREATE INDEX IF NOT EXISTS idx_trust_signals_measured_at ON trust_signals(measured_at);
+      `,
+    },
+    {
+      name: 'trust_regression_events',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS trust_regression_events (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          trigger TEXT NOT NULL,
+          severity TEXT NOT NULL DEFAULT 'warning',
+          description TEXT NOT NULL,
+          user_reported INTEGER NOT NULL DEFAULT 0,
+          user_feedback TEXT,
+          briefing_id TEXT,
+          section_id TEXT,
+          metadata TEXT DEFAULT '{}',
+          resolved INTEGER NOT NULL DEFAULT 0,
+          resolved_at TEXT,
+          resolution TEXT,
+          timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_trust_regression_user_id ON trust_regression_events(user_id);
+        CREATE INDEX IF NOT EXISTS idx_trust_regression_trigger ON trust_regression_events(trigger);
+        CREATE INDEX IF NOT EXISTS idx_trust_regression_severity ON trust_regression_events(severity);
+        CREATE INDEX IF NOT EXISTS idx_trust_regression_resolved ON trust_regression_events(resolved);
+        CREATE INDEX IF NOT EXISTS idx_trust_regression_timestamp ON trust_regression_events(timestamp);
+      `,
+    },
+    {
+      name: 'user_eligibility',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS user_eligibility (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL UNIQUE,
+          eligible INTEGER NOT NULL DEFAULT 0,
+          technical_comfort INTEGER DEFAULT 0,
+          healthy_skepticism INTEGER DEFAULT 0,
+          direct_channel INTEGER DEFAULT 0,
+          patience INTEGER DEFAULT 0,
+          daily_tool_user INTEGER DEFAULT 0,
+          expects_polish INTEGER DEFAULT 0,
+          ignores_errors INTEGER DEFAULT 0,
+          too_many_integrations INTEGER DEFAULT 0,
+          non_us_timezone INTEGER DEFAULT 0,
+          needs_atlas_to_work INTEGER DEFAULT 0,
+          blocked_reasons TEXT DEFAULT '[]',
+          assessed_at TEXT NOT NULL DEFAULT (datetime('now')),
+          assessed_by TEXT,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_eligibility_user_id ON user_eligibility(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_eligibility_eligible ON user_eligibility(eligible);
+      `,
+    },
+    {
+      name: 'daily_review_checklists',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS daily_review_checklists (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL UNIQUE,
+          completed_at TEXT,
+          completed_by TEXT,
+          checks TEXT NOT NULL DEFAULT '{}',
+          questions TEXT NOT NULL DEFAULT '{}',
+          erosion_patterns TEXT NOT NULL DEFAULT '{}',
+          all_clear INTEGER DEFAULT 0,
+          notes TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_review_date ON daily_review_checklists(date);
+        CREATE INDEX IF NOT EXISTS idx_daily_review_completed_at ON daily_review_checklists(completed_at);
+      `,
+    },
+    {
+      name: 'briefing_retries',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS briefing_retries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          briefing_id TEXT,
+          session_id TEXT NOT NULL,
+          section_id TEXT,
+          retry_count INTEGER NOT NULL DEFAULT 1,
+          first_retry_at TEXT NOT NULL DEFAULT (datetime('now')),
+          last_retry_at TEXT NOT NULL DEFAULT (datetime('now')),
+          retries_in_last_minute INTEGER NOT NULL DEFAULT 1,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_briefing_retries_user_id ON briefing_retries(user_id);
+        CREATE INDEX IF NOT EXISTS idx_briefing_retries_session_id ON briefing_retries(session_id);
+        CREATE INDEX IF NOT EXISTS idx_briefing_retries_last_retry ON briefing_retries(last_retry_at);
+      `,
+    },
+    {
+      name: 'briefing_schedules',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS briefing_schedules (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          hour INTEGER NOT NULL DEFAULT 7,
+          minute INTEGER NOT NULL DEFAULT 30,
+          timezone TEXT NOT NULL DEFAULT 'America/New_York',
+          day_of_week INTEGER,
+          last_run_at TEXT,
+          next_run_at TEXT,
+          delivery_method TEXT NOT NULL DEFAULT 'push',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_briefing_schedules_user_id ON briefing_schedules(user_id);
+        CREATE INDEX IF NOT EXISTS idx_briefing_schedules_enabled ON briefing_schedules(enabled);
+        CREATE INDEX IF NOT EXISTS idx_briefing_schedules_next_run ON briefing_schedules(next_run_at);
+      `,
+    },
+  ];
+
+  // Check and create each missing table
+  for (const { name, createSql } of requiredTables) {
+    const exists = sqlite.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name=?
+    `).get(name);
+
+    if (!exists) {
+      log.info({ table: name }, 'Creating missing table');
+      sqlite.exec(createSql);
+    }
+  }
 }
 
 /**
