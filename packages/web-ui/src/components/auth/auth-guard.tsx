@@ -68,7 +68,7 @@ export function GuestGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       // Check for stored redirect destination
-      const redirect = sessionStorage.getItem('atlas_redirect') || '/'
+      const redirect = sessionStorage.getItem('atlas_redirect') || '/overview'
       sessionStorage.removeItem('atlas_redirect')
       router.push(redirect)
     }

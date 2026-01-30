@@ -18,7 +18,7 @@ export function useMessageSearch({ messages, debounceMs = 200 }: UseMessageSearc
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const debounceTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debounce the query
   useEffect(() => {
@@ -141,7 +141,7 @@ export function useGlobalSearch({ conversations, debounceMs = 300 }: UseGlobalSe
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const debounceTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debounce
   useEffect(() => {

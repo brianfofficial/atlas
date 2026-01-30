@@ -114,7 +114,7 @@ export function useCalendarEvents(range?: { start: Date; end: Date }) {
 export function useTodayEvents() {
   return useQuery({
     queryKey: ['calendar', 'today'],
-    queryFn: calendarApi.getTodayEvents,
+    queryFn: () => calendarApi.getTodayEvents(),
     staleTime: 60 * 1000,
   })
 }
