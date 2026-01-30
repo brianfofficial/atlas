@@ -873,6 +873,118 @@ export const briefingRetriesRelations = relations(briefingRetries, ({ one }) => 
   }),
 }));
 
+// ============================================================================
+// CHAT SYSTEM TABLES
+// ============================================================================
+
+/**
+ * Conversations - Chat conversation containers
+ */
+export const conversations = sqliteTable(
+  'conversations',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default('New Conversation'),
+    messageCount: integer('message_count').notNull().default(0),
+    lastMessageAt: text('last_message_at'),
+    lastMessage: text('last_message'), // Preview of last message
+    metadata: text('metadata').default('{}'),
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+    updatedAt: text('updated_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    userIdIdx: index('idx_conversations_user_id').on(table.userId),
+    updatedAtIdx: index('idx_conversations_updated_at').on(table.updatedAt),
+    userUpdatedIdx: index('idx_conversations_user_updated').on(table.userId, table.updatedAt),
+  })
+);
+
+/**
+ * Messages - Individual chat messages
+ */
+export const messages = sqliteTable(
+  'messages',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(), // 'user' | 'assistant' | 'system'
+    content: text('content').notNull(),
+
+    // AI response metadata
+    model: text('model'),
+    provider: text('provider'),
+    tokensInput: integer('tokens_input'),
+    tokensOutput: integer('tokens_output'),
+    durationMs: integer('duration_ms'),
+    estimatedCost: real('estimated_cost'),
+    finishReason: text('finish_reason'), // 'stop' | 'max_tokens' | 'error'
+
+    // Error tracking
+    error: text('error'),
+
+    // General metadata
+    metadata: text('metadata').default('{}'),
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    conversationIdIdx: index('idx_messages_conversation_id').on(table.conversationId),
+    createdAtIdx: index('idx_messages_created_at').on(table.createdAt),
+    roleIdx: index('idx_messages_role').on(table.role),
+  })
+);
+
+/**
+ * Message attachments - Files attached to messages
+ */
+export const messageAttachments = sqliteTable(
+  'message_attachments',
+  {
+    id: text('id').primaryKey(),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    fileId: text('file_id').notNull(),
+    fileName: text('file_name').notNull(),
+    fileSize: integer('file_size'),
+    fileType: text('file_type'),
+    url: text('url'),
+    createdAt: text('created_at').notNull().default("datetime('now')"),
+  },
+  (table) => ({
+    messageIdIdx: index('idx_message_attachments_message_id').on(table.messageId),
+    fileIdIdx: index('idx_message_attachments_file_id').on(table.fileId),
+  })
+);
+
+// Chat system relations
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  user: one(users, {
+    fields: [conversations.userId],
+    references: [users.id],
+  }),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one, many }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  attachments: many(messageAttachments),
+}));
+
+export const messageAttachmentsRelations = relations(messageAttachments, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageAttachments.messageId],
+    references: [messages.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -904,3 +1016,11 @@ export type TrustRegressionEventRow = typeof trustRegressionEvents.$inferSelect;
 export type UserEligibilityRow = typeof userEligibility.$inferSelect;
 export type DailyReviewChecklistRow = typeof dailyReviewChecklists.$inferSelect;
 export type BriefingRetryRow = typeof briefingRetries.$inferSelect;
+
+// Chat system types
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
+export type MessageAttachment = typeof messageAttachments.$inferSelect;
+export type NewMessageAttachment = typeof messageAttachments.$inferInsert;

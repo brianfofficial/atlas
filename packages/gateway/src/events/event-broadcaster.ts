@@ -31,7 +31,13 @@ export type EventType =
   | 'draft:undone'
   | 'metrics:updated'
   | 'trust:failure'
-  | 'schedule:triggered';
+  | 'schedule:triggered'
+  // Chat events
+  | 'chat:message_sent'
+  | 'chat:message_started'
+  | 'chat:message_complete'
+  | 'chat:conversation_created'
+  | 'chat:conversation_deleted';
 
 export interface BroadcastEvent<T = unknown> {
   type: EventType;

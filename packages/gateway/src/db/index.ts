@@ -312,6 +312,72 @@ function runIncrementalMigrations(): void {
         CREATE INDEX IF NOT EXISTS idx_briefing_schedules_next_run ON briefing_schedules(next_run_at);
       `,
     },
+    // ============================================================================
+    // CHAT SYSTEM TABLES
+    // ============================================================================
+    {
+      name: 'conversations',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS conversations (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          title TEXT NOT NULL DEFAULT 'New Conversation',
+          message_count INTEGER NOT NULL DEFAULT 0,
+          last_message_at TEXT,
+          last_message TEXT,
+          metadata TEXT DEFAULT '{}',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+        CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at);
+      `,
+    },
+    {
+      name: 'messages',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS messages (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          model TEXT,
+          provider TEXT,
+          tokens_input INTEGER,
+          tokens_output INTEGER,
+          duration_ms INTEGER,
+          estimated_cost REAL,
+          finish_reason TEXT,
+          error TEXT,
+          metadata TEXT DEFAULT '{}',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+        CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
+      `,
+    },
+    {
+      name: 'message_attachments',
+      createSql: `
+        CREATE TABLE IF NOT EXISTS message_attachments (
+          id TEXT PRIMARY KEY,
+          message_id TEXT NOT NULL,
+          file_id TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          file_size INTEGER,
+          file_type TEXT,
+          url TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_message_attachments_message_id ON message_attachments(message_id);
+        CREATE INDEX IF NOT EXISTS idx_message_attachments_file_id ON message_attachments(file_id);
+      `,
+    },
   ];
 
   // Check and create each missing table

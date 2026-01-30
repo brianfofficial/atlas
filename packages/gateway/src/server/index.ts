@@ -31,6 +31,7 @@ import memoryRoutes from './routes/memory.js';
 import auditRoutes from './routes/audit.js';
 import briefingsRoutes from './routes/briefings.js';
 import rolloutRoutes from './routes/rollout.js';
+import chatRoutes from './routes/chat.js';
 
 import { initializeDatabase } from '../db/index.js';
 import { EventBroadcaster, getEventBroadcaster } from '../events/event-broadcaster.js';
@@ -118,6 +119,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.use('/api/audit/*', authMiddleware());
   app.use('/api/briefings/*', authMiddleware());
   app.use('/api/rollout/*', authMiddleware());
+  app.use('/api/chat/*', authMiddleware());
 
   app.route('/api/approvals', approvalsRoutes);
   app.route('/api/dashboard', dashboardRoutes);
@@ -128,6 +130,7 @@ export function createServer(config: Partial<AtlasConfig> = {}): Hono<ServerEnv>
   app.route('/api/audit', auditRoutes);
   app.route('/api/briefings', briefingsRoutes);
   app.route('/api/rollout', rolloutRoutes);
+  app.route('/api/chat', chatRoutes);
 
   // 404 handler
   app.notFound((c) => {

@@ -38,6 +38,8 @@ interface ChatInterfaceProps {
   onOpenExport?: () => void
   isLoading?: boolean
   isSending?: boolean
+  isStreaming?: boolean
+  streamingContent?: string
   className?: string
 }
 
@@ -53,15 +55,17 @@ export function ChatInterface({
   onOpenExport,
   isLoading,
   isSending,
+  isStreaming,
+  streamingContent,
   className,
 }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showSidebar, setShowSidebar] = useState(true)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or streaming content changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversation?.messages.length])
+  }, [conversation?.messages.length, streamingContent])
 
   const handleSend = useCallback(
     async (content: string, attachments?: UploadedFile[]) => {
@@ -194,8 +198,28 @@ export function ChatInterface({
                 <EmptyState onNewConversation={onNewConversation} />
               )}
 
-              {/* Sending indicator */}
-              {isSending && (
+              {/* Streaming response */}
+              {isStreaming && streamingContent && (
+                <div className="flex gap-3 p-4 mt-2">
+                  <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                    <div className="h-4 w-4 rounded-full bg-success/30 flex items-center justify-center">
+                      <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">Atlas</span>
+                      <span className="text-xs text-muted-foreground">generating...</span>
+                    </div>
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <p className="whitespace-pre-wrap">{streamingContent}<span className="animate-pulse">▌</span></p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Waiting indicator (before streaming starts) */}
+              {isSending && !isStreaming && (
                 <div className="flex gap-3 p-4 mt-2 animate-pulse">
                   <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center">
                     <div className="h-2 w-2 rounded-full bg-success animate-bounce" />
